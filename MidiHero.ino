@@ -56,6 +56,8 @@ int lastMillis = 0; //used to calculate delta t
 bool starPower = false; //is true when pinSelect is active
 bool lastStarPower = false;
 
+int midiChannel = 0x00; //stores the midichannel 0-15, 0 = all channels
+
 bool stateNotes[6] = {0, 0, 0, 0, 0, 0};
 bool stateUp = 0;
 bool stateDown = 0;
@@ -160,19 +162,35 @@ void loop() {
   }
 
   if(!lastStateUp && stateUp || (!lastStateDown && stateDown)){
-    //Rising Edge on Up or Down Button, play the currently pressed notes
-    bool resetted = false;
-    for(int i = 0; i <= 5; i++){
-      if(stateNotes[i] != 0){
-        //0x90 = Note on, 0x45 = middle velocity
-        int noteOffset = 0;
-        if(starPower){
-          noteOffset = 12;
-        }     
-        sendMidi(0x90, notes[currPreset][i] + noteOffset, 0x45);
-        UpdateTremolo();
+    if(stateCrossMiddleSmall){
+      //currently editing Midi Channel
+      if(stateUp){
+        midiChannel += 0x01;
+        if(midiChannel >= 0x0F){
+          midiChannel = 0x0F;
+        }
       }
+      if(stateDown){
+        midiChannel -= 0x01;
+        if(midiChannel <= 0x00){
+          midiChannel = 0x00;
+        }
+      }
+    } else {
+      //Rising Edge on Up or Down Button, play the currently pressed notes, or edit midi
+      for(int i = 0; i <= 5; i++){
+        if(stateNotes[i] != 0){
+          //0x90 = Note on, 0x45 = middle velocity
+          int noteOffset = 0;
+          if(starPower){
+            noteOffset = 12;
+          }     
+          sendMidi(0x90, notes[currPreset][i] + noteOffset, 0x45);
+          UpdateTremolo();
+        }
+      }      
     }
+
   }
 
   //reset notes
@@ -301,10 +319,37 @@ void loop() {
   //Read Cross PRESSED to change Midi Channel
   if(stateCrossMiddleSmall){
     //cross pressed down completely
+    bool bits[8];
+
+    for (int i = 0; i < 4; i++) {
+      bits[i] = ((midiChannel + 0x01) >> (i)) & 0x01;
+    }
+
+    UpdateStrobe(50, bits);
   }else{
     UpdateLed();    
   }
+}
 
+int strobeCounter = 0;
+bool strobeState = false;
+
+
+void UpdateStrobe(int rate, bool states[4]){
+  //call this function on every update to flicker the LEDs
+  //states indicates which LEDs are turned off, and which are flickering
+  strobeCounter -= 1;
+  if(strobeCounter <= 0){
+    strobeState = !strobeState;
+    strobeCounter = rate;
+    for(int i = 0; i < 4; i++){
+      if(states[i]){
+        digitalWrite(pinLeds[i], strobeState?HIGH:LOW); //flicker active LEDs  
+      } else{
+        digitalWrite(pinLeds[i], HIGH); //turn off unactive LEDs
+      }
+    }
+  }
 }
 
 void BlinkLeds(int time){
@@ -330,7 +375,7 @@ void UpdateLed(){
     }
   } else{
     //display preset number
-    if(currPreset != lastPreset){
+    if(currPreset != lastPreset || lastStateCrossMiddleSmall){
       for(int i = 0; i<=3; i++){
         if(i == currPreset){
           digitalWrite(pinLeds[i], LOW);
@@ -382,10 +427,13 @@ void FilterChange(int value){
 // data values are less than 127:
 void sendMidi(int cmd, int pitch, int velocity) {
   //Serial.print("Note: " + (String) notes[i] + "\n");
-  Serial.write(cmd);
+  int firstByte = cmd & 0xF0;
+  firstByte |= (midiChannel & 0x0F);
+  Serial.write(firstByte);
   Serial.write(pitch);
   Serial.write(velocity);
 
+  //Debug Code to print out 
   // String str = "\nPresets: \n";
   // for(int i = 0; i < presetCount; i++){
   //   for(int j = 0; j < 6; j++){
@@ -395,6 +443,7 @@ void sendMidi(int cmd, int pitch, int velocity) {
   // }
   // Serial.print(str);
   
+  //Debug Code to print all Input states
   // Serial.print("N1: " + (String)stateNotes[0] + 
   //             " N2: " + (String)stateNotes[1] + 
   //             " N3: " + (String)stateNotes[2] + 
