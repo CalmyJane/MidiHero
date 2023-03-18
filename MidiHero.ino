@@ -30,12 +30,12 @@ const int pinDown = A7;
 // const int pinStart = 13;
 const int pinTremolo = A0;
 const int pinSelect = A1;
-const int pinCrossUp = A2;
-const int pinCrossDown = A3;
-const int pinCrossLeft = A4;
-const int pinCrossRight = A5;
-const int pinCrossMiddle = A6;
-const int pinCrossMiddleSmall = 13;
+const int pinDpadUp = A2;
+const int pinDpadDown = A3;
+const int pinDpadLeft = A4;
+const int pinDpadRight = A5;
+const int pinShift = A6;
+const int pinDpadAll = 13;
 
 const int presetCount = 4;
 //4 presets of 6 notes each. May be edited later by user
@@ -46,9 +46,9 @@ int notes[presetCount][6] = {{0x3C, 0x3E, 0x40, 0x41, 0x43, 0x45}, // C4, D4, E4
 int currPreset = 0;
 int lastPreset = 1;
 
-int currBendRange = 1; //the range of the pitchbend in semitones (-12 to 12, 0 is skipped)
+int tremoloRange = 1; //the range of the pitchbend in semitones (-12 to 12, 0 is skipped)
 const int bendModes = 2; //number of different bend modes
-int currBendMode = 0; //counter for current bend mode (0..bendModes)
+int tremoloMode = 0; //counter for current bend mode (0..bendModes)
 
 int ledCounter = 0; //used to blink the leds
 int lastMillis = 0; //used to calculate delta t
@@ -64,12 +64,12 @@ bool stateDown = 0;
 // bool stateStart = 0;
 int stateTremolo = 0; //amount of tremolo pressed, 1023 when released, 0 when pressed down
 bool stateSelect = 0;
-bool stateCrossUp = 0;
-bool stateCrossDown = 0;
-bool stateCrossLeft = 0;
-bool stateCrossRight = 0;
-bool stateCrossMiddle = 0;
-bool stateCrossMiddleSmall = 0;
+bool stateDpadUp = 0;
+bool stateDpadDown = 0;
+bool stateDpadLeft = 0;
+bool stateDpadRight = 0;
+bool stateShift = 0;
+bool stateDpadAll = 0;
 
 bool lastStateNotes[6] = {0,0,0,0,0,0};
 bool lastStateUp = 0;
@@ -77,12 +77,12 @@ bool lastStateDown = 0;
 // bool lastStateStart = 0;
 int lastStateTremolo = 0;
 bool lastStateSelect = 0;
-bool lastStateCrossUp = 0;
-bool lastStateCrossDown = 0;
-bool lastStateCrossLeft = 0;
-bool lastStateCrossRight = 0;
-bool lastStateCrossMiddle = 0;
-bool lastStateCrossMiddleSmall = 0;
+bool lastStateDpadUp = 0;
+bool lastStateDpadDown = 0;
+bool lastStateDpadLeft = 0;
+bool lastStateDpadRight = 0;
+bool lastStateShift = 0;
+bool lastStateDpadAll = 0;
 
 
 void setup() {
@@ -97,12 +97,12 @@ void setup() {
   pinMode(pinDown, INPUT);
   pinMode(pinTremolo, INPUT);
   pinMode(pinSelect, INPUT);
-  pinMode(pinCrossUp, INPUT);
-  pinMode(pinCrossDown, INPUT);
-  pinMode(pinCrossLeft, INPUT);
-  pinMode(pinCrossRight, INPUT);
-  pinMode(pinCrossMiddle, INPUT);
-  pinMode(pinCrossMiddleSmall, INPUT);
+  pinMode(pinDpadUp, INPUT);
+  pinMode(pinDpadDown, INPUT);
+  pinMode(pinDpadLeft, INPUT);
+  pinMode(pinDpadRight, INPUT);
+  pinMode(pinShift, INPUT);
+  pinMode(pinDpadAll, INPUT);
 
   pinMode(LED_BUILTIN, OUTPUT);
   for(int i = 0; i <= 3; i++){
@@ -141,18 +141,18 @@ void loop() {
   lastStarPower = starPower;
   stateSelect = analogRead(pinSelect) > 100;
   starPower = stateSelect;
-  lastStateCrossUp = stateCrossUp;
-  stateCrossUp = analogRead(pinCrossUp) > 100;
-  lastStateCrossDown = stateCrossDown;
-  stateCrossDown = analogRead(pinCrossDown) > 100;
-  lastStateCrossLeft = stateCrossLeft;
-  stateCrossLeft = analogRead(pinCrossLeft) > 100;
-  lastStateCrossRight = stateCrossRight;
-  stateCrossRight = analogRead(pinCrossRight) > 100;
-  lastStateCrossMiddle = stateCrossMiddle;
-  stateCrossMiddle = analogRead(pinCrossMiddle) > 100;
-  lastStateCrossMiddleSmall = stateCrossMiddleSmall;
-  stateCrossMiddleSmall = analogRead(pinCrossMiddleSmall) > 100;
+  lastStateDpadUp = stateDpadUp;
+  stateDpadUp = analogRead(pinDpadUp) > 100;
+  lastStateDpadDown = stateDpadDown;
+  stateDpadDown = analogRead(pinDpadDown) > 100;
+  lastStateDpadLeft = stateDpadLeft;
+  stateDpadLeft = analogRead(pinDpadLeft) > 100;
+  lastStateDpadRight = stateDpadRight;
+  stateDpadRight = analogRead(pinDpadRight) > 100;
+  lastStateShift = stateShift;
+  stateShift = analogRead(pinShift) > 100;
+  lastStateDpadAll = stateDpadAll;
+  stateDpadAll = analogRead(pinDpadAll) > 100;
 
   if(starPower && !lastStarPower || (!starPower && lastStarPower)){
     for(int j = 0; j <=5; j++){
@@ -162,7 +162,7 @@ void loop() {
   }
 
   if(!lastStateUp && stateUp || (!lastStateDown && stateDown)){
-    if(stateCrossMiddleSmall){
+    if(stateDpadAll){
       //currently editing Midi Channel
       if(stateUp){
         midiChannel += 0x01;
@@ -213,53 +213,59 @@ void loop() {
   }
 
   //read navigation bar LEFT
-  if(stateCrossLeft && !lastStateCrossLeft){
-    currBendMode += 1;
-    if(currBendMode >= bendModes){
-      currBendMode = bendModes - 1;
-    } else {
-      BlinkLeds(80);
+  if(stateDpadLeft && !lastStateDpadLeft){
+    if(stateShift){
+      //shift pressed - change tremolo range
+      tremoloRange -= 1;
+      if(tremoloRange <- 12){
+        tremoloRange = -12;
+      } else{
+        BlinkLeds(50);
+      }
+    } else{
+      //change tremolo mode
+      tremoloMode += 1;
+      if(tremoloMode >= bendModes){
+        tremoloMode = bendModes - 1;
+      } else {
+        BlinkLeds(80);
+      }      
     }
   }
 
   //read navigation bar RIGHT
-  if(stateCrossRight && !lastStateCrossRight){
-    currBendMode -= 1;
-    if(currBendMode < 0){
-      currBendMode = 0;
+  if(stateDpadRight && !lastStateDpadRight){
+    if(stateShift){
+      //change tremoloRange
+      tremoloRange += 1;
+      if(tremoloRange > 12){
+        tremoloRange = 12;
+      } else {
+        BlinkLeds(50);
+      }
     } else {
-      BlinkLeds(80);
+      //change tremoloMode
+      tremoloMode -= 1;
+      if(tremoloMode < 0){
+        tremoloMode = 0;
+      } else {
+        BlinkLeds(80);
+      }      
     }
   }
 
-  //read navigaion bar UP
-  if(!lastStateCrossUp && stateCrossUp){
-    //cross up pressed - increment pressed notes by one semitone (tuning)
-    if(stateCrossMiddle){
-      int tuneNote = false; //about to tune note or bend-range?
+  //read dpad UP
+  if(!lastStateDpadUp && stateDpadUp){
+    //dpad up pressed - increment pressed notes by one semitone (tuning)
+    if(stateShift){
       for(int i = 0; i<=5; i++){
         if(stateNotes[i]){
           notes[currPreset][i] += 1;
-          tuneNote = true;
           sendMidi(0x90, notes[currPreset][i], 0x45);
         }
       }
-      if(!tuneNote){
-        //not note tuning, check for pitchbend tuning
-        currBendRange += 1;
-        if(currBendRange > 12){
-          currBendRange = 12;
-        } else if(currBendRange == 0){
-          currBendRange = 1;
-          BlinkLeds(50);
-        } else {
-          BlinkLeds(50);
-        }
-      }  else {
-        BlinkLeds(50); //blink 100ms   
-      }
-    } else {
-      //reset midi notes
+    }  else {
+      //switch preset
       for(int i = 0; i<=5; i++){
         //0x90 = NoteON, 0x00 = silent velocity (note off)
         sendMidi(0x90, notes[currPreset][i], 0x00);
@@ -270,13 +276,15 @@ void loop() {
       if(currPreset >= presetCount){
         currPreset = presetCount - 1;
       }
+      UpdateLed();
     }
-
   }
+
+
   //read Navigation bar DOWN
-  if(!lastStateCrossDown && stateCrossDown){
+  if(!lastStateDpadDown && stateDpadDown){
     //cross down pressed - decrement pressed notes by one semitone (tuning)
-    if(stateCrossMiddle){
+    if(stateShift){
       int tuneNote = false; //about to tune note or bend-range?
       for(int i = 0; i<=5; i++){
         if(stateNotes[i]){
@@ -285,21 +293,6 @@ void loop() {
           tuneNote = true;
           sendMidi(0x90, notes[currPreset][i], 0x45);
         }
-      }
-      if(!tuneNote){
-        //not note tuning, check for pitchbend tuning
-        currBendRange -= 1;
-        if(currBendRange == 0){
-          //skip the zero
-          currBendRange = -1;
-          BlinkLeds(50);
-        } else if(currBendRange <- 12){
-          currBendRange = -12;
-        } else{
-          BlinkLeds(50);
-        }
-      } else {
-        BlinkLeds(50); //blink 100ms   
       }
     } else{
       //reset midi notes
@@ -313,11 +306,12 @@ void loop() {
       if(currPreset < 0){
         currPreset = 0;
       }
+      UpdateLed();
     }
   }
 
   //Read Cross PRESSED to change Midi Channel
-  if(stateCrossMiddleSmall){
+  if(stateDpadAll){
     //cross pressed down completely
     bool bits[8];
 
@@ -375,7 +369,7 @@ void UpdateLed(){
     }
   } else{
     //display preset number
-    if(currPreset != lastPreset || lastStateCrossMiddleSmall){
+    if(currPreset != lastPreset || lastStateDpadAll){
       for(int i = 0; i<=3; i++){
         if(i == currPreset){
           digitalWrite(pinLeds[i], LOW);
@@ -392,12 +386,12 @@ void UpdateTremolo(){
     if(tremoloValue <= 5){
       tremoloValue = 0;
     }
-    switch(currBendMode){
+    switch(tremoloMode){
     case 0:  // Pitch Bend
-      PitchWheelChange(currBendRange * (-(tremoloValue * 8)/12));
+      PitchWheelChange(tremoloRange * (-(tremoloValue * 8)/12));
       break;
     case 1:  // Pressure
-      FilterChange((((currBendRange + 12) * tremoloValue/8)/24));
+      FilterChange((((tremoloRange + 12) * tremoloValue/8)/24));
       break;
     }
 }
