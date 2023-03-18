@@ -6,12 +6,13 @@ Btw, this readme was written by chatGPT in a "cool and authentic musician-to-mus
 This groovy repo provides the Arduino code and docs you need to turn a 6-button, PS3-gen GuitarHero controller into a rad MIDI controller. The modded axe sends MIDI notes through a 5-pin MIDI output, making it jam with any standard synth.
 
 ## 🎸 Guitar Components
-* `Note buttons` (6 buttons on the neck, dude!)
+![* `Note buttons` (6 buttons on the neck, dude!)
 * `Up/down trigger`
 * `Shift button`
 * `Directional pad (D-pad)`
 * `Tremolo arm`
-* Scale indicator LEDs (lights up your fretboard!)
+* Scale indicator LEDs (lights up your fretboard!)](MidiHeroComponents.svg)
+
 
 ## 🤘 Usage Instructions
 ### Playing Notes
