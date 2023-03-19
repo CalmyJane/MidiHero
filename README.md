@@ -41,3 +41,14 @@ By default, your guitar sends notes on MIDI channel 1. We recommend setting your
 ## Schematics
 
 ![Schematic of the arduino and its IOs ](pictures/Schematic.png)
+
+## Tutorials
+
+### Arduino Midi Player Tutorial
+I took the Midi Output Circuit from this
+https://docs.arduino.cc/built-in-examples/communication/Midi
+
+### Arduino Button Input Tutorial
+This is the circuit used for all buttons inside the guitar. Be aware, that the buttons in the controller do have a bit more resistance while on than usual buttons (up to 300 Ohms), so make sure you use 10k resistors to GND, smaller resistors may cause glitches.
+https://docs.arduino.cc/built-in-examples/digital/Button
+
