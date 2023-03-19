@@ -40,21 +40,18 @@ const int pinDpadAll = 13;
 const int presetCount = 4;
 //4 presets of 6 notes each. May be edited later by user
 int notes[presetCount][6] = {{0x3C, 0x3E, 0x40, 0x41, 0x43, 0x45}, // C4, D4, E4, F4, G4, A4 - c-major
-                   {0x40, 0x43, 0x45, 0x46, 0x4A, 0x4C}, // E4, G4, A4, Bb4, D5, E5 - e-minor pentatonik
-                   {0x3C, 0x3E, 0x40, 0x43, 0x45, 0x48}, // C4, D4, E4, G4, A4, C5 - c-major pentatonik
-                   {0x3C, 0x3F, 0x43, 0x37, 0x3A, 0x3E}};// C3, D#4, G4, G3, Bb3, D4 - c minor and g minor chords
+                             {0x40, 0x43, 0x45, 0x46, 0x4A, 0x4C}, // E4, G4, A4, Bb4, D5, E5 - e-minor pentatonik
+                             {0x3C, 0x3E, 0x40, 0x43, 0x45, 0x48}, // C4, D4, E4, G4, A4, C5 - c-major pentatonik
+                             {0x3C, 0x3F, 0x43, 0x37, 0x3A, 0x3E}};// C3, D#4, G4, G3, Bb3, D4 - c minor and g minor chords
 int currPreset = 0;
 int lastPreset = 1;
 
 int tremoloRange = 1; //the range of the pitchbend in semitones (-12 to 12, 0 is skipped)
-const int bendModes = 2; //number of different bend modes
+const int tremoloModeCount = 3; //number of different bend modes
 int tremoloMode = 0; //counter for current bend mode (0..bendModes)
 
 int ledCounter = 0; //used to blink the leds
 int lastMillis = 0; //used to calculate delta t
-
-bool starPower = false; //is true when pinSelect is active
-bool lastStarPower = false;
 
 int midiChannel = 0x00; //stores the midichannel 0-15, 0 = all channels
 
@@ -108,7 +105,6 @@ void setup() {
   for(int i = 0; i <= 3; i++){
     pinMode(pinLeds[i], OUTPUT);
   }
-
 }
 
 void loop() {
@@ -121,8 +117,6 @@ void loop() {
   //   noteOn(0x90, note, 0x40);
   //   delay(100);
   // }
-
-
 
   for(int i = 0; i <= 5; i++){
     lastStateNotes[i] = stateNotes[i];
@@ -138,9 +132,7 @@ void loop() {
   lastStateTremolo = stateTremolo;
   stateTremolo = analogRead(pinTremolo);
   lastStateSelect = stateSelect;
-  lastStarPower = starPower;
   stateSelect = analogRead(pinSelect) > 100;
-  starPower = stateSelect;
   lastStateDpadUp = stateDpadUp;
   stateDpadUp = analogRead(pinDpadUp) > 100;
   lastStateDpadDown = stateDpadDown;
@@ -154,57 +146,32 @@ void loop() {
   lastStateDpadAll = stateDpadAll;
   stateDpadAll = analogRead(pinDpadAll) > 100;
 
-  if(starPower && !lastStarPower || (!starPower && lastStarPower)){
-    for(int j = 0; j <=5; j++){
-      sendMidi(0x90, notes[currPreset][j] + 12, 0x00);
-      sendMidi(0x90, notes[currPreset][j], 0x00);
-    }    
+  if(stateSelect && !lastStateSelect){
+    ChangePreset(true);
   }
 
   if(!lastStateUp && stateUp || (!lastStateDown && stateDown)){
-    if(stateDpadAll){
+    if(stateDpadAll && stateDpadLeft && stateDpadRight && stateDpadUp && stateDpadDown){
       //currently editing Midi Channel
-      if(stateUp){
-        midiChannel += 0x01;
-        if(midiChannel >= 0x0F){
-          midiChannel = 0x0F;
-        }
-      }
-      if(stateDown){
-        midiChannel -= 0x01;
-        if(midiChannel <= 0x00){
-          midiChannel = 0x00;
-        }
-      }
+      ChangeMidiChannel(stateUp);
     } else {
-      //Rising Edge on Up or Down Button, play the currently pressed notes, or edit midi
-      for(int i = 0; i <= 5; i++){
-        if(stateNotes[i] != 0){
-          //0x90 = Note on, 0x45 = middle velocity
-          int noteOffset = 0;
-          if(starPower){
-            noteOffset = 12;
-          }     
-          sendMidi(0x90, notes[currPreset][i] + noteOffset, 0x45);
-          UpdateTremolo();
-        }
-      }      
+      if(stateShift){
+        //Tune Notes up/down
+        TuneNotes(stateUp);
+      } else {
+        //Normal strum, play notes
+        PlayNotes();            
+      }
     }
-
   }
 
-  //reset notes
+  //reset notes when note button is released
   for(int i = 0; i <= 5; i++){
     if(!stateNotes[i] && lastStateNotes[i]){
-      //0x90 = Note on, 0x00 = silent velocity = note stops playing
-      if(starPower){
-        sendMidi(0x90, notes[currPreset][i] + 0x0C, 0x00);
-      } else{
-        sendMidi(0x90, notes[currPreset][i], 0x00);
-      }
+      //Mute every released note
+      PlayNote(notes[currPreset][i], false);
       UpdateTremolo();
     }
-
   }
 
   //read tremolo change
@@ -212,113 +179,35 @@ void loop() {
       UpdateTremolo();
   }
 
-  //read navigation bar LEFT
+  //read D-Pad LEFT
   if(stateDpadLeft && !lastStateDpadLeft){
-    if(stateShift){
-      //shift pressed - change tremolo range
-      tremoloRange -= 1;
-      if(tremoloRange <- 12){
-        tremoloRange = -12;
-      } else{
-        BlinkLeds(50);
-      }
-    } else{
-      //change tremolo mode
-      tremoloMode += 1;
-      if(tremoloMode >= bendModes){
-        tremoloMode = bendModes - 1;
-      } else {
-        BlinkLeds(80);
-      }      
-    }
+    ChangeTremoloMode(true);    
   }
 
-  //read navigation bar RIGHT
+  //read D-Pad RIGHT
   if(stateDpadRight && !lastStateDpadRight){
-    if(stateShift){
-      //change tremoloRange
-      tremoloRange += 1;
-      if(tremoloRange > 12){
-        tremoloRange = 12;
-      } else {
-        BlinkLeds(50);
-      }
-    } else {
-      //change tremoloMode
-      tremoloMode -= 1;
-      if(tremoloMode < 0){
-        tremoloMode = 0;
-      } else {
-        BlinkLeds(80);
-      }      
-    }
+    ChangeTremoloMode(false);
   }
 
   //read dpad UP
   if(!lastStateDpadUp && stateDpadUp){
-    //dpad up pressed - increment pressed notes by one semitone (tuning)
-    if(stateShift){
-      for(int i = 0; i<=5; i++){
-        if(stateNotes[i]){
-          notes[currPreset][i] += 1;
-          sendMidi(0x90, notes[currPreset][i], 0x45);
-        }
-      }
-    }  else {
-      //switch preset
-      for(int i = 0; i<=5; i++){
-        //0x90 = NoteON, 0x00 = silent velocity (note off)
-        sendMidi(0x90, notes[currPreset][i], 0x00);
-      }
-      //increment preset
-      lastPreset = currPreset;
-      currPreset += 1; //4 presets
-      if(currPreset >= presetCount){
-        currPreset = presetCount - 1;
-      }
-      UpdateLed();
-    }
+    //dpad up pressed - change preset
+    ChangeTremoloRange(true);
   }
 
-
-  //read Navigation bar DOWN
+  //read D-Pad DOWN
   if(!lastStateDpadDown && stateDpadDown){
-    //cross down pressed - decrement pressed notes by one semitone (tuning)
-    if(stateShift){
-      int tuneNote = false; //about to tune note or bend-range?
-      for(int i = 0; i<=5; i++){
-        if(stateNotes[i]){
-          sendMidi(0x90, notes[currPreset][i], 0x00);
-          notes[currPreset][i] -= 1;
-          tuneNote = true;
-          sendMidi(0x90, notes[currPreset][i], 0x45);
-        }
-      }
-    } else{
-      //reset midi notes
-      for(int i = 0; i<=5; i++){
-        //0x90 = NoteON, 0x00 = silent velocity (note off)
-        sendMidi(0x90, notes[currPreset][i], 0x00);
-      }
-      //decrement currPreset
-      lastPreset = currPreset;
-      currPreset -= 1;
-      if(currPreset < 0){
-        currPreset = 0;
-      }
-      UpdateLed();
-    }
+    //cross down pressed
+    ChangeTremoloRange(false);
   }
 
-  //Read Cross PRESSED to change Midi Channel
-  if(stateDpadAll){
+  //Read D-pad PRESSED to change Midi Channel
+  if(stateDpadAll && stateDpadLeft && stateDpadRight && stateDpadUp && stateDpadDown){
     //cross pressed down completely
     bool bits[8];
-
     for (int i = 0; i < 4; i++) {
       bits[i] = ((midiChannel + 0x01) >> (i)) & 0x01;
     }
-
     UpdateStrobe(50, bits);
   }else{
     UpdateLed();    
@@ -328,6 +217,81 @@ void loop() {
 int strobeCounter = 0;
 bool strobeState = false;
 
+void PlayNotes(){
+  //Plays the notes of the currently pressed note buttons
+  for(int i = 0; i <= 5; i++){
+    if(stateNotes[i] != 0){
+      PlayNote(notes[currPreset][i], true);
+      UpdateTremolo();
+    }
+  }
+}
+
+void TuneNotes(bool up){
+  //tunes the curently pressed note buttones one semitone up/down
+  for(int i = 0; i<=5; i++){
+    if(stateNotes[i]){
+      //Mute all notes
+      PlayNote(notes[currPreset][i], false);
+      notes[currPreset][i] += up?1:-1; //increment or decrement
+      //Play tuned notes
+      PlayNote(notes[currPreset][i], true);
+    }
+  }
+}
+
+void ChangeMidiChannel(bool up){
+  //Increments or Decrements the midiChannel with overroll on 0..16
+  midiChannel += up?0x01:-0x01;
+  if(midiChannel > 0x0F){
+    midiChannel -= 0x10;
+  } else if(midiChannel <0x00){
+    midiChannel += 0x10;
+  }
+}
+
+void ChangeTremoloMode(bool up){
+  //change tremoloMode
+  ResetTremolo();
+  tremoloMode += up?1:-1;
+  if(tremoloMode < 0){
+    tremoloMode += tremoloModeCount;
+  } else if(tremoloMode >= tremoloModeCount){
+    tremoloMode -= tremoloModeCount;
+  }
+  BlinkLeds(80);
+}
+
+void ChangeTremoloRange(bool up){
+  //change tremoloRange
+  tremoloRange += up?1:-1;
+  if(tremoloRange > 12){
+    tremoloRange = 12;
+  } else if(tremoloRange <= 0){
+    tremoloRange = 1;
+  } else {
+    BlinkLeds(80);
+  }
+}
+
+void ChangePreset(bool up){
+  //changes the Preset one number up/down with overroll at 0..4
+  //reset midi notes
+  for(int i = 0; i<=5; i++){
+    //mute all notes
+    PlayNote(notes[currPreset][i], false);
+  }
+  //decrement currPreset
+  lastPreset = currPreset;
+  currPreset += up?1:-1;
+  if(currPreset < 0){
+    currPreset += 4;
+  } else if(currPreset >=4){
+    currPreset -= 4;
+  }
+  //use leds to display currently selected preset
+  UpdateLed();
+}
 
 void UpdateStrobe(int rate, bool states[4]){
   //call this function on every update to flicker the LEDs
@@ -381,17 +345,25 @@ void UpdateLed(){
   }
 }
 
+void ResetTremolo(){
+  stateTremolo = 1023;
+  UpdateTremolo();
+}
+
 void UpdateTremolo(){
     int tremoloValue = 1023 - stateTremolo; //tremoloValue from 0 to 1023
     if(tremoloValue <= 5){
       tremoloValue = 0;
     }
     switch(tremoloMode){
-    case 0:  // Pitch Bend
+    case 0:  // Pitch Down
       PitchWheelChange(tremoloRange * (-(tremoloValue * 8)/12));
       break;
-    case 1:  // Pressure
-      FilterChange((((tremoloRange + 12) * tremoloValue/8)/24));
+    case 1:  //Pitch Up
+      PitchWheelChange(tremoloRange * ((tremoloValue * 8)/12));
+      break;
+    case 2:  // Pressure
+      FilterChange(((tremoloRange * tremoloValue/8)/12));
       break;
     }
 }
@@ -401,25 +373,27 @@ void PitchWheelChange(int value) {
     unsigned int change = 0x2000 + value;  //  0x2000 == No Change
     unsigned char low = change & 0x7F;  // Low 7 bits
     unsigned char high = (change >> 7) & 0x7F;  // High 7 bits
-    sendMidi(0xE0, low, high);
+    SendMidi(0xE0, low, high);
 }
 
 void FilterChange(int value){
   //value in 0..127
-  int offset = 0;
-  if(starPower){
-    offset = 12;
-  }
   for(int i=0; i<6; i++){
     if(stateNotes[i] != 0){
-      sendMidi(0xA0, notes[currPreset][i] + offset, value);
+      //0xA0 = pressure message for aftertouch from 0..127
+      SendMidi(0xA0, notes[currPreset][i], value);
     }
   }
 }
 
+void PlayNote(int pitch, bool on){
+  //send 0x90 command - play note - with 0x00 (note off) or 0x45 (not on) velocity
+  SendMidi(0x90, pitch, on?0x45:0x00);
+}
+
 // plays a MIDI note. Doesn't check to see that cmd is greater than 127, or that
 // data values are less than 127:
-void sendMidi(int cmd, int pitch, int velocity) {
+void SendMidi(int cmd, int pitch, int velocity) {
   //Serial.print("Note: " + (String) notes[i] + "\n");
   int firstByte = cmd & 0xF0;
   firstByte |= (midiChannel & 0x0F);
