@@ -30,6 +30,8 @@ Tremolo modes include:
 * **Pitch Up** - Pitch bends up all notes by 1..12 semitones
 * **Aftertouch** - Sends aftertouch (velocity) messages to modify current notes. With a synth like the Arturia MicroFreak, you can control anything through the modulation matrix - let your creativity flow!
 
+You can change modes by pressing `D-pad left/right`.
+
 ### Guitar Tuning
 Wanna tweak your presets? No problem, dude! Select a preset, then press and hold the `notes` you want to change. Adjust the pitch with `Shift + trigger up/down` for a semitone up or down. Transpose an entire preset by holding all notes and pressing `Shift + trigger up/down`. Just remember, custom presets won't be saved when you restart the guitar - they'll go back to default. But hey, it's a great way to reset if things get to funky!
 
