@@ -56,50 +56,60 @@ Details about the different boards:
 Some pins are not used in my version of the controller, maybe there are other controllers with an additional uController inside the neck, for now only the button-pins are used.
 
 Pinout:
-1 - Vcc - not connected
-2 - SWDCLK - not connected
-3 - RST/SWDIO - not connected
-4 - MODE - not connected
-5 - W1 - note 1
-6 - W2 - note 2
-7 - W3 - note 3
-8 - B1 - note 1
-9 - B2 - note 2
-10- B3 - note 3
-11- GND
+* 1 - Vcc - not connected
+* 2 - SWDCLK - not connected
+* 3 - RST/SWDIO - not connected
+* 4 - MODE - not connected
+* 5 - W1 - note 1
+* 6 - W2 - note 2
+* 7 - W3 - note 3
+* 8 - B1 - note 1
+* 9 - B2 - note 2
+* 10- B3 - note 3
+* 11- GND
 
 ### Trigger Board
 
 Pinout:
-1 - GND
-2 - DOWN
-3 - UP
+* 1 - GND
+* 2 - DOWN
+* 3 - UP
 
 ### HeroPower Board
 Start is the signal for the big HeroPower button, select is the two small buttons beside it. The buttons cannot be read seperately and they are not used for this mod. The board also contains 4 leds that are supplied through Vcc. They can be directly connected to the arduino (sinking their current into a digital output pin) through a 220 Ohn Resistor.
 
 Pinout:
-1 - CH4 - LED4
-2 - CH3 - LED3
-3 - CH2 - LED2
-4 - CH1 - LED1
-5 - Vcc - +5V
-6 - Start
-7 - Select
-8 - GND
+* 1 - CH4 - LED4
+* 2 - CH3 - LED3
+* 3 - CH2 - LED2
+* 4 - CH1 - LED1
+* 5 - Vcc - +5V
+* 6 - Start
+* 7 - Select
+* 8 - GND
 
 ### Navigation Board
 The navigation board contains the `shift` button and the d-pad, the d-pad consists of 5 buttons, one for each direction and a center one that activates when pressing the middle of the dpad or pressing down the entire d-pad. This middle button can also activate randomly while nagvigating in some directions, so I recommend only using it to detect a complete push down of the d-pad by reading the middle button, and all directions at once.
 
 Pinout:
-1 - VB - Shift button
-2 - POWER - seperate channel for shift button, also connect to +5V
-3 - GND - also 5V+
-4 - CH_KEY - d-pad middle button
-5 - UP
-6 - DOWN
-7 - LEFT
-8 - RIGHT
+* 1 - VB - Shift button
+* 2 - POWER - seperate channel for shift button, also connect to +5V
+* 3 - GND - also 5V+
+* 4 - CH_KEY - d-pad middle button
+* 5 - UP
+* 6 - DOWN
+* 7 - LEFT
+* 8 - RIGHT
+
+## The Controller
+
+The code runs on a arduino nano and can be run through the arduino IDE.
+
+### Rx pin
+The code uses all digital and analog pins except for Rx. You may be able to use it somehow, but I got a but with error messages when uploading new code while the button was connected to anything but ground, so I decided not to use it and keep the select buttons unwired.
+
+### Power supply
+During debug the board is powered through USB via the USB port, in parallel there is a MP1584 buck converter wired to the Vin pin. The buck converter uses a 9V battery as power source and is adjusted to output +5V. So far it was fine having the usb-cable and the buck converter powering the board in parallel.
 
 ## Tutorials
 
