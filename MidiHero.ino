@@ -229,11 +229,18 @@ void PlayNotes(){
 
 void TuneNotes(bool up){
   //tunes the curently pressed note buttones one semitone up/down
+  bool range = false;
+  for(int i = 0; i<=5; i++){
+    //make sure, that no note exceeds 0x00..0x77
+    range = (((notes[currPreset][i] + 1) >= 0x77) && up) || (((notes[currPreset][i] - 1) < 0x00) && !up) || range;
+  }
   for(int i = 0; i<=5; i++){
     if(stateNotes[i]){
       //Mute all notes
       PlayNote(notes[currPreset][i], false);
-      notes[currPreset][i] += up?1:-1; //increment or decrement
+      if(!range){
+        notes[currPreset][i] += up?1:-1; //increment or decrement
+      }
       //Play tuned notes
       PlayNote(notes[currPreset][i], true);
     }
