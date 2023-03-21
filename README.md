@@ -42,6 +42,65 @@ By default, your guitar sends notes on MIDI channel 1. We recommend setting your
 
 ![Schematic of the arduino and its IOs ](pictures/Schematic.png)
 
+## Internals
+![Inside view of the modded guitar controller ](pictures/Internals.png)
+Inside the controller there is mostly Buttons that are placed on different boards. The neck is detachable and only contains the 6 `note` buttons and no additional circuitry, so it does not need to be opened or modified. Besides the buttons there is a potentiometer for the `tremolo`. Everything is attached to a controller through many flat ribbon cables. The controller is a bluetooth controller and could be used to turn something else into a guitarhero controller, maybe playing guitarhero with fruits? ;)
+
+Inside the main frame there are 4 boards that contain several buttons. The boards usually have a GND-pin and several pins that can be connected to GND by pressing a button. To read the buttons with an arduino 5V is supplied to GND (don't get confused) of the board. The resulting signal is then read through a digital input pin with another grounding resistor. The circuit is as described in this tutorial:
+
+https://docs.arduino.cc/built-in-examples/digital/Button
+
+Details about the different boards:
+
+### Neck Connector
+Some pins are not used in my version of the controller, maybe there are other controllers with an additional uController inside the neck, for now only the button-pins are used.
+
+Pinout:
+1 - Vcc - not connected
+2 - SWDCLK - not connected
+3 - RST/SWDIO - not connected
+4 - MODE - not connected
+5 - W1 - note 1
+6 - W2 - note 2
+7 - W3 - note 3
+8 - B1 - note 1
+9 - B2 - note 2
+10- B3 - note 3
+11- GND
+
+### Trigger Board
+
+Pinout:
+1 - GND
+2 - DOWN
+3 - UP
+
+### HeroPower Board
+Start is the signal for the big HeroPower button, select is the two small buttons beside it. The buttons cannot be read seperately and they are not used for this mod. The board also contains 4 leds that are supplied through Vcc. They can be directly connected to the arduino (sinking their current into a digital output pin) through a 220 Ohn Resistor.
+
+Pinout:
+1 - CH4 - LED4
+2 - CH3 - LED3
+3 - CH2 - LED2
+4 - CH1 - LED1
+5 - Vcc - +5V
+6 - Start
+7 - Select
+8 - GND
+
+### Navigation Board
+The navigation board contains the `shift` button and the d-pad, the d-pad consists of 5 buttons, one for each direction and a center one that activates when pressing the middle of the dpad or pressing down the entire d-pad. This middle button can also activate randomly while nagvigating in some directions, so I recommend only using it to detect a complete push down of the d-pad by reading the middle button, and all directions at once.
+
+Pinout:
+1 - VB - Shift button
+2 - POWER - seperate channel for shift button, also connect to +5V
+3 - GND - also 5V+
+4 - CH_KEY - d-pad middle button
+5 - UP
+6 - DOWN
+7 - LEFT
+8 - RIGHT
+
 ## Tutorials
 
 ### Arduino Midi Player Tutorial
