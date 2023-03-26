@@ -43,14 +43,14 @@ By default, your guitar sends notes on MIDI channel 1. We recommend setting your
 ![Schematic of the arduino and its IOs ](pictures/Schematic.png)
 
 ## Internals
-![Inside view of the modded guitar controller ](pictures/Internals.png)
+![Inside view of the modded guitar controller ](pictures/Internals.jpg)
 Inside the controller there is mostly Buttons that are placed on different boards. The neck is detachable and only contains the 6 `note` buttons and no additional circuitry, so it does not need to be opened or modified. Besides the buttons there is a potentiometer for the `tremolo`. Everything is attached to a controller through many flat ribbon cables. The controller is a bluetooth controller and could be used to turn something else into a guitarhero controller, maybe playing guitarhero with fruits? ;)
 
 Inside the main frame there are 4 boards that contain several buttons. The boards usually have a GND-pin and several pins that can be connected to GND by pressing a button. To read the buttons with an arduino 5V is supplied to GND (don't get confused) of the board. The resulting signal is then read through a digital input pin with another grounding resistor. The circuit is as described in this tutorial:
 
 https://docs.arduino.cc/built-in-examples/digital/Button
 
-Details about the different boards:
+Details about the different boards inside the controller:
 
 ### Neck Connector
 Some pins are not used in my version of the controller, maybe there are other controllers with an additional uController inside the neck, for now only the button-pins are used.
