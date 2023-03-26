@@ -22,20 +22,20 @@
 
   https://www.arduino.cc/en/Tutorial/BuiltInExamples/Midi
 */
-const int pinNotes[6] = {8,9,10,5,6,7};
-const int pinLeds[4] = {12,4,3,2};
+const int pinNotes[6] = {9,10,11,6,7,8};
+const int pinLeds[4] = {5,4,3,2};
 
-const int pinUp = 11;
-const int pinDown = A7;
+const int pinUp = 12;
+const int pinDown = 13;
 // const int pinStart = 13;
-const int pinTremolo = A0;
-const int pinSelect = A1;
-const int pinDpadUp = A2;
-const int pinDpadDown = A3;
-const int pinDpadLeft = A4;
-const int pinDpadRight = A5;
-const int pinShift = A6;
-const int pinDpadAll = 13;
+const int pinTremolo = A7;
+const int pinSelect = A0;
+const int pinDpadUp = A3;
+const int pinDpadDown = A4;
+const int pinDpadLeft = A5;
+const int pinDpadRight = A6;
+const int pinShift = A2;
+const int pinDpadAll = A1;
 
 const int presetCount = 4;
 //4 presets of 6 notes each. May be edited later by user
@@ -126,7 +126,7 @@ void loop() {
   lastStateUp = stateUp;
   stateUp = digitalRead(pinUp) > 0;
   lastStateDown = stateDown;
-  stateDown = analogRead(pinDown) > 100;
+  stateDown = digitalRead(pinDown);
   // lastStateStart = stateStart;
   // stateStart = digitalRead(pinStart) > 0;
   lastStateTremolo = stateTremolo;
@@ -430,13 +430,12 @@ void SendMidi(int cmd, int pitch, int velocity) {
   //             // " START: " + (String)stateStart + 
   //             " TREMOLO: " + (String)stateTremolo + 
   //             " SELECT: " + (String)stateSelect + 
-  //             " CUP: " + (String)stateCrossUp + 
-  //             " CDOWN: " + (String)stateCrossDown + 
-  //             " CLEFT: " + (String)stateCrossLeft + 
-  //             " CRIGHT: " + (String)stateCrossRight + 
-  //             " CMID: " + (String)stateCrossMiddle + 
-  //             " CMIDS: " + (String)stateCrossMiddleSmall +
-  //             " currPreset: " + (String)currPreset +
-  //             " currBendRange: " + (String)currBendRange + "\n"
+  //             " CUP: " + (String)stateDpadUp + 
+  //             " CDOWN: " + (String)stateDpadDown + 
+  //             " CLEFT: " + (String)stateDpadLeft + 
+  //             " CRIGHT: " + (String)stateDpadRight + 
+  //             " CMID: " + (String)stateDpadAll + 
+  //             " CMIDS: " + (String)stateShift +
+  //             " currPreset: " + (String)currPreset + "\n"
   //             );
 }
