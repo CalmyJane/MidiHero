@@ -55,6 +55,11 @@ Details about the different boards:
 ### Neck Connector
 Some pins are not used in my version of the controller, maybe there are other controllers with an additional uController inside the neck, for now only the button-pins are used.
 
+![Front view of Neck Connector Board](pictures/BoardNeckFront.jpg)
+
+![Back view of Neck Connector Board](pictures/BoardNeckBack.jpg)
+
+
 Pinout:
 * 1 - Vcc - not connected
 * 2 - SWDCLK - not connected
