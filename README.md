@@ -54,11 +54,7 @@ Details about the different boards:
 
 ### Neck Connector
 Some pins are not used in my version of the controller, maybe there are other controllers with an additional uController inside the neck, for now only the button-pins are used.
-
-![Front view of Neck Connector Board](pictures/BoardNeckFront.jpg)
-
-![Back view of Neck Connector Board](pictures/BoardNeckBack.jpg)
-
+<img src="pictures/BoardNeckFront.jpg" width="50%" alt="Front view of Neck Connector Board"><img src="pictures/BoardNeckBack.jpg" width="50%" alt="Back view of Neck Connector Board">
 
 Pinout:
 * 1 - Vcc - not connected
