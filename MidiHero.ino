@@ -279,6 +279,7 @@ void ChangeTremoloRange(bool up){
   } else {
     BlinkLeds(80);
   }
+  UpdateTremolo();
 }
 
 void ChangePreset(bool up){
