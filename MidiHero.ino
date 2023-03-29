@@ -1,48 +1,255 @@
+// ---- MIDI HERO FIRMWARE ----
+
+// Project for ardution that reads several buttons, a potentiometer and a PWM-Signal (dutycycle) and converts them into MIDI-Messages
+// uses Arduino nano to output MIDI messages on the Tx pin to a standart 5-pin-plug
+// pwm dutycycle is read to get slider-value
+// poti is read to get tremolo-value
+// all other buttons on the guitar hero controller are read as digital inputs
+
+// This code is written by Calmy Jane and based on various examples
+//check out the readme for more information
 
 
+class MidiWriter{
+  public:
+    MidiWriter(){
+      Serial.begin(31250);
+    }
 
-/*
-  MIDI note player
+    void write(int cmd, int channel, int data1, int data2){
+      //writes 1-3 bytes
+      int firstByte = cmd & 0xF0;
+      if(firstByte != 0xF0){
+      //if not system message, include midi channel information
+        firstByte |= (channel & 0x0F);        
+      }
+      // Serial.print("write: ");
+      // Serial.print(firstByte, HEX);
+      // Serial.print(" - ");
+      // Serial.print(data1, HEX);
+      // Serial.print(" - ");
+      // Serial.print(data2, HEX);
+      // Serial.print(" \n");
+      // Serial.write(firstByte);
+      // Serial.write(data1);
+      // Serial.write(data2);
+    }
 
-  This sketch shows how to use the serial transmit pin (pin 1) to send MIDI note data.
-  If this circuit is connected to a MIDI synth, it will play the notes
-  F#-0 (0x1E) to F#-5 (0x5A) in sequence.
+    void noteOnOff(int note, int channel, bool on){
+      //0x90 = play note, 0x45 = medium velocity
+      write(0x90, channel, note, on?0x45:0x00);
+    }
 
-  The circuit:
-  - digital in 1 connected to MIDI jack pin 5
-  - MIDI jack pin 2 connected to ground
-  - MIDI jack pin 4 connected to +5V through 220 ohm resistor
-  - Attach a MIDI cable to the jack, then to a MIDI synth, and play music.
+    void pitchBend(int value, int channel) {   
+      // Value is +/- 8192
+        unsigned int change = 0x2000 + value;  //  0x2000 == No Change
+        unsigned char low = change & 0x7F;  // Low 7 bits
+        unsigned char high = (change >> 7) & 0x7F;  // High 7 bits
+        write(0xE0, channel, low, high);
+    }
+    
+    void monoPressure(int value, int channel){
+      //sends pressure message for monophonic aftertouch. there's also a message for polyphonic aftertoucht
+      //value in 0..127
+      //0xA0 = pressure message for aftertouch from 0..127
+      write(0xA0, 0, value, 0);
+    }
+};
 
-  created 13 Jun 2006
-  modified 13 Aug 2012
-  by Tom Igoe
+enum NoteMode {
+  singleTone = 0,     // Note key plays a single tone
+  power = 1,    // Note key plays a power chord, tone, tone + 7 semitones, tone 1 octave
+  major = 2,    // Note key plays a major chord, tone, tone + 4 semitones, tone + 7 semitones
+  minor = 3     // Note key plays a minor chord, tone, tone + 3 semitones, tone + 7 semitones
+};
 
-  This example code is in the public domain.
+class Note{
+  private:
+    int root = 0x3C;
+    NoteMode mode = singleTone;
+    bool playing = false;
+    MidiWriter midi;
+    int midiChannel = 0;
+  public:
+    Note(){
+      //default constructor
+    }
 
-  https://www.arduino.cc/en/Tutorial/BuiltInExamples/Midi
-*/
-const int pinNotes[6] = {9,10,11,6,7,8};
-const int pinLeds[4] = {5,4,3,2};
+    Note(MidiWriter writer, int value, int noteMode, int channel){
+      set(writer, value, noteMode, channel);
+    }
+
+    void set(MidiWriter writer, int value, int noteMode, int channel){
+      //set current note value 0xC3 = C4
+      play(false);
+      midiChannel = channel;
+      midi = writer;
+      root = value;
+      mode = noteMode;
+    }
+
+    void setChannel(int channel){
+      play(false);
+      midiChannel = channel;
+    }
+
+    void setMode(NoteMode value){
+      mode = value;
+    }
+
+    void play(bool on){
+      //send 0x90 command - play note - with 0x00 (note off) or 0x45 (not on) velocity
+      if(playing || (!playing && on)){
+        switch(mode){
+          case singleTone:
+            //single note
+            midi.noteOnOff(root, midiChannel, on);
+            break;
+          case power:
+            //power chord
+            midi.noteOnOff(root + 7, midiChannel, on);
+            midi.noteOnOff(root + 12, midiChannel, on);
+            midi.noteOnOff(root, midiChannel, on);
+            break;
+          case major:
+            //major chord
+            midi.noteOnOff(root + 4, midiChannel, on);
+            midi.noteOnOff(root + 7, midiChannel, on);
+            midi.noteOnOff(root, midiChannel, on);
+            break;
+          case minor:
+            //minor chord
+            midi.noteOnOff(root + 3, midiChannel, on);
+            midi.noteOnOff(root + 7, midiChannel, on);
+            midi.noteOnOff(root, midiChannel, on);
+            break;
+        }
+        //do not send off when note is not playing, avoid "silent" messages
+      }
+      playing = on; //store current state
+    }
+
+    void tune(bool up){
+      // tune 1 semitone up/down
+      root += up?1:-1;
+    }
+
+    int getRoot(){
+      return root;
+    }
+
+    int changeMode(bool up){
+      play(false);
+      mode = (mode + (up?1:-1));
+      if(mode >= 4){
+        mode = 0;
+      } else if (mode < 0){
+        mode = 3;
+      }
+    }
+};
+
+class RollingAverage {
+  public:
+    RollingAverage(uint32_t n) {
+      bufferSize = n;
+      buffer = new uint32_t[bufferSize];
+      bufferIndex = 0;
+      bufferSum = 0;
+      bufferCount = 0;
+      // Initialize the buffer with zeros
+      for (uint32_t i = 0; i < bufferSize; i++) {
+        buffer[i] = 0;
+      }
+    }
+
+    ~RollingAverage() {
+      delete[] buffer;
+    }
+
+    void add(uint32_t amount) {
+      bufferSum += amount;
+      bufferSum -= buffer[bufferIndex];
+      buffer[bufferIndex] = amount;
+  
+      bufferIndex = ((bufferIndex + 1) % bufferSize + bufferSize) % bufferSize; //positive modulo
+
+      if (bufferCount < bufferSize) {
+        bufferCount++;
+      }
+    }
+
+    uint32_t get() {
+      if (bufferCount == 0) {
+        return 0;
+      }
+      return bufferSum / bufferCount;
+    }
+
+  private:
+    uint32_t bufferSize;
+    uint32_t *buffer;
+    uint32_t bufferIndex;
+    uint32_t bufferSum;
+    uint32_t bufferCount;
+};
+
+const int pinNotes[5] = {6,7,8,9,10};
+const int pinLeds[4] = {2,5,4,3};
 
 const int pinUp = 12;
-const int pinDown = 13;
-// const int pinStart = 13;
+const int pinDown = 11;
 const int pinTremolo = A7;
 const int pinSelect = A0;
-const int pinDpadUp = A3;
-const int pinDpadDown = A4;
-const int pinDpadLeft = A5;
-const int pinDpadRight = A6;
-const int pinShift = A2;
-const int pinDpadAll = A1;
+const int pinDpadUp = A1;
+const int pinDpadDown = A2;
+const int pinDpadLeft = A3;
+const int pinDpadRight = A4;
+const int pinShift = 13;
+const int pinDpadAll = A5;
+const int pinSlide = A6;
 
 const int presetCount = 4;
 //4 presets of 6 notes each. May be edited later by user
-int notes[presetCount][6] = {{0x3C, 0x3E, 0x40, 0x41, 0x43, 0x45}, // C4, D4, E4, F4, G4, A4 - c-major
-                             {0x40, 0x43, 0x45, 0x46, 0x4A, 0x4C}, // E4, G4, A4, Bb4, D5, E5 - e-minor pentatonik
-                             {0x3C, 0x3E, 0x40, 0x43, 0x45, 0x48}, // C4, D4, E4, G4, A4, C5 - c-major pentatonik
-                             {0x3C, 0x3F, 0x43, 0x37, 0x3A, 0x3E}};// C3, D#4, G4, G3, Bb3, D4 - c minor and g minor chords
+String presets[presetCount][5] = {{"C4", "F4", "G4", "A4", "C5"}, // C F G A for chords
+                             {"C4", "D#4", "F4", "G4", "A#4"}, //c-minor pentatonik
+                             {"C4", "D4", "E4", "G4", "A4"}, //c-major pentatonik
+                             {"A3", "B3", "D4", "E4", "A5"}};// 4 Chords for Blitskrieg bob (A3-A3-D4-E4, Chorus D4-D4-A3-D4-A3 D4-D4-B3-D4-A3)
+int presetModes[presetCount][5] = {{0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {1,1,1,1,0}, //chord-preset containing some chords
+};
+
+int getHexNote(String strNote){
+  //turns a string note ("C4", "G#4") to a hex note (0x3C, 44)
+  // 0x00 = C1
+  bool sharp = strNote.length() == 3;
+  String letter = "";
+  int number = 0;
+  if(sharp){
+    letter = strNote.substring(0,2);
+    number = 12 * strNote.substring(2,3).toInt();
+  } else{
+    letter = strNote.substring(0,1);
+    number = 12 * strNote.substring(1,2).toInt();
+  }
+  int noteNumber = 0;
+  if(letter == "C#"){noteNumber = 1;}
+  else if(letter == "D"){noteNumber = 2;}
+  else if(letter == "D#"){noteNumber = 3;}
+  else if(letter == "E"){noteNumber = 4;}
+  else if(letter == "F"){noteNumber = 5;}
+  else if(letter == "F#"){noteNumber = 6;}
+  else if(letter == "G"){noteNumber = 7;}
+  else if(letter == "G#"){noteNumber = 8;}
+  else if(letter == "A"){noteNumber = 9;}
+  else if(letter == "A#"){noteNumber = 10;}
+  else if(letter == "B"){noteNumber = 11;}
+  noteNumber += number;
+  return noteNumber;
+}
+
 int currPreset = 0;
 int lastPreset = 1;
 
@@ -55,10 +262,11 @@ int lastMillis = 0; //used to calculate delta t
 
 int midiChannel = 0x00; //stores the midichannel 0-15, 0 = all channels
 
-bool stateNotes[6] = {0, 0, 0, 0, 0, 0};
+RollingAverage slideVal(50);
+
+bool stateNotes[5] = {0, 0, 0, 0, 0};
 bool stateUp = 0;
 bool stateDown = 0;
-// bool stateStart = 0;
 int stateTremolo = 0; //amount of tremolo pressed, 1023 when released, 0 when pressed down
 bool stateSelect = 0;
 bool stateDpadUp = 0;
@@ -67,11 +275,11 @@ bool stateDpadLeft = 0;
 bool stateDpadRight = 0;
 bool stateShift = 0;
 bool stateDpadAll = 0;
+uint32_t stateSlide = 0;
 
-bool lastStateNotes[6] = {0,0,0,0,0,0};
+bool lastStateNotes[5] = {0,0,0,0,0};
 bool lastStateUp = 0;
 bool lastStateDown = 0;
-// bool lastStateStart = 0;
 int lastStateTremolo = 0;
 bool lastStateSelect = 0;
 bool lastStateDpadUp = 0;
@@ -80,14 +288,18 @@ bool lastStateDpadLeft = 0;
 bool lastStateDpadRight = 0;
 bool lastStateShift = 0;
 bool lastStateDpadAll = 0;
+int lastStateSlide = 0;
 
+MidiWriter midi;
+Note notes[5];
 
 void setup() {
   // Set MIDI baud rate:
-  Serial.begin(31250);
+  midi = MidiWriter();
 
-  for(int i = 0; i <= 5; i++){
+  for(int i = 0; i < 5; i++){
     pinMode(pinNotes[i], INPUT);
+    notes[i] = Note(midi, getHexNote(presets[0][i]), presetModes[0][i], midiChannel);
   }
 
   pinMode(pinUp, INPUT);
@@ -100,6 +312,7 @@ void setup() {
   pinMode(pinDpadRight, INPUT);
   pinMode(pinShift, INPUT);
   pinMode(pinDpadAll, INPUT);
+  pinMode(pinSlide, INPUT);
 
   pinMode(LED_BUILTIN, OUTPUT);
   for(int i = 0; i <= 3; i++){
@@ -108,50 +321,72 @@ void setup() {
 }
 
 void loop() {
-  // play notes from F#-0 (0x1E) to F#-5 (0x5A):
-  // for (int note = 0x1E; note < 0x5A; note++) {
-  //   //Note on channel 1 (0x90), some note value (note), middle velocity (0x45):
-  //   noteOn(0x90, note, 0x45);
-  //   delay(100);
-  //   //Note on channel 1 (0x90), some note value (note), silent velocity (0x00):
-  //   noteOn(0x90, note, 0x40);
-  //   delay(100);
-  // }
-
-  for(int i = 0; i <= 5; i++){
+  for(int i = 0; i <= 4; i++){
     lastStateNotes[i] = stateNotes[i];
     stateNotes[i] = digitalRead(pinNotes[i]);
   }
 
   lastStateUp = stateUp;
-  stateUp = digitalRead(pinUp) > 0;
+  stateUp = digitalRead(pinUp);
   lastStateDown = stateDown;
   stateDown = digitalRead(pinDown);
-  // lastStateStart = stateStart;
-  // stateStart = digitalRead(pinStart) > 0;
   lastStateTremolo = stateTremolo;
   stateTremolo = analogRead(pinTremolo);
   lastStateSelect = stateSelect;
-  stateSelect = analogRead(pinSelect) > 100;
+  stateSelect = digitalRead(pinSelect);
   lastStateDpadUp = stateDpadUp;
-  stateDpadUp = analogRead(pinDpadUp) > 100;
+  stateDpadUp = digitalRead(pinDpadUp);
   lastStateDpadDown = stateDpadDown;
-  stateDpadDown = analogRead(pinDpadDown) > 100;
+  stateDpadDown = digitalRead(pinDpadDown);
   lastStateDpadLeft = stateDpadLeft;
-  stateDpadLeft = analogRead(pinDpadLeft) > 100;
+  stateDpadLeft = digitalRead(pinDpadLeft);
   lastStateDpadRight = stateDpadRight;
-  stateDpadRight = analogRead(pinDpadRight) > 100;
+  stateDpadRight = digitalRead(pinDpadRight);
   lastStateShift = stateShift;
-  stateShift = analogRead(pinShift) > 100;
+  stateShift = digitalRead(pinShift);
   lastStateDpadAll = stateDpadAll;
-  stateDpadAll = analogRead(pinDpadAll) > 100;
+  stateDpadAll = digitalRead(pinDpadAll);
+  lastStateSlide = stateSlide;
+  slideVal.add(analogRead(pinSlide));
+  stateSlide = slideVal.get();
+  // TODO properly read slide bar
+  int tolerance = 50;
+  int slideNote = 0;
+  if(abs(stateSlide - 140) <= tolerance){
+    slideNote = 1;
+  } else if(abs(stateSlide - 350) <= tolerance){
+    slideNote = 2;
+  } else if(abs(stateSlide - 600) <= tolerance){
+    slideNote = 3;
+  } else if(abs(stateSlide - 770) <= tolerance){
+    slideNote = 4;
+  } else if(abs(stateSlide - 1000) <= tolerance){
+    slideNote = 5;
+  } else if(abs(stateSlide - 500) <= tolerance){
+    slideNote = 6;
+  }  
+  Serial.print("SlideVal: ");
+  Serial.print(slideNote);
+  Serial.print("\n");
 
   if(stateSelect && !lastStateSelect){
-    ChangePreset(true);
+    // hero power button pressed
+    if(stateShift){
+      // tuning/ shift pressed - change mode (single note, major chord, minor chord ..) for all active notes
+      for (int i=0; i<5; i++){
+        if (stateNotes[i]){
+          notes[i].changeMode(true);
+          notes[i].play(true);
+        }
+      }
+    } else {
+      // switch preset
+      ChangePreset(true);
+    }
   }
 
   if(!lastStateUp && stateUp || (!lastStateDown && stateDown)){
-    if(stateDpadAll && stateDpadLeft && stateDpadRight && stateDpadUp && stateDpadDown){
+    if(stateDpadAll){
       //currently editing Midi Channel
       ChangeMidiChannel(stateUp);
     } else {
@@ -166,10 +401,10 @@ void loop() {
   }
 
   //reset notes when note button is released
-  for(int i = 0; i <= 5; i++){
+  for(int i = 0; i <= 4; i++){
     if(!stateNotes[i] && lastStateNotes[i]){
       //Mute every released note
-      PlayNote(notes[currPreset][i], false);
+      notes[i].play(false);
       UpdateTremolo();
     }
   }
@@ -201,8 +436,8 @@ void loop() {
     ChangeTremoloRange(false);
   }
 
-  //Read D-pad PRESSED to change Midi Channel
-  if(stateDpadAll && stateDpadLeft && stateDpadRight && stateDpadUp && stateDpadDown){
+  //Read D-pad middle to change Midi Channel
+  if(stateDpadAll){
     //cross pressed down completely
     bool bits[8];
     for (int i = 0; i < 4; i++) {
@@ -212,6 +447,26 @@ void loop() {
   }else{
     UpdateLed();    
   }
+    
+  // // Debug Code to print all Input states
+  // Serial.print("N1: " + (String)stateNotes[0] + 
+  //             " N2: " + (String)stateNotes[1] + 
+  //             " N3: " + (String)stateNotes[2] + 
+  //             " N4: " + (String)stateNotes[3] + 
+  //             " N5: " + (String)stateNotes[4] + 
+  //             " UP: " + (String)stateUp + 
+  //             " DOWN: " + (String)stateDown + 
+  //             // " START: " + (String)stateStart + 
+  //             " SELECT: " + (String)stateSelect + 
+  //             " CUP: " + (String)stateDpadUp + 
+  //             " CDOWN: " + (String)stateDpadDown + 
+  //             " CLEFT: " + (String)stateDpadLeft + 
+  //             " CRIGHT: " + (String)stateDpadRight + 
+  //             " CMID: " + (String)stateDpadAll + 
+  //             " Shift: " + (String)stateShift +
+  //             " TREMOLO: " + (String)stateTremolo + 
+  //             " Slide: " + (String)stateSlide + "\n"
+  //             );
 }
 
 int strobeCounter = 0;
@@ -219,9 +474,9 @@ bool strobeState = false;
 
 void PlayNotes(){
   //Plays the notes of the currently pressed note buttons
-  for(int i = 0; i <= 5; i++){
+  for(int i = 0; i < 5; i++){
     if(stateNotes[i] != 0){
-      PlayNote(notes[currPreset][i], true);
+      notes[i].play(true);
       UpdateTremolo();
     }
   }
@@ -230,19 +485,19 @@ void PlayNotes(){
 void TuneNotes(bool up){
   //tunes the curently pressed note buttones one semitone up/down
   bool range = false;
-  for(int i = 0; i<=5; i++){
+  for(int i = 0; i<5; i++){
     //make sure, that no note exceeds 0x00..0x77
-    range = (((notes[currPreset][i] + 1) >= 0x77) && up) || (((notes[currPreset][i] - 1) < 0x00) && !up) || range;
+    range = (((notes[i].getRoot() + 1) >= 0x77) && up) || (((notes[i].getRoot() - 1) < 0x00) && !up) || range;
   }
-  for(int i = 0; i<=5; i++){
+  for(int i = 0; i<5; i++){
     if(stateNotes[i]){
       //Mute all notes
-      PlayNote(notes[currPreset][i], false);
+      notes[i].play(false);
       if(!range){
-        notes[currPreset][i] += up?1:-1; //increment or decrement
+        notes[i].tune(up); //increment or decrement
       }
       //Play tuned notes
-      PlayNote(notes[currPreset][i], true);
+      notes[i].play(true);
     }
   }
 }
@@ -254,6 +509,9 @@ void ChangeMidiChannel(bool up){
     midiChannel -= 0x10;
   } else if(midiChannel <0x00){
     midiChannel += 0x10;
+  }
+  for(int i = 0; i < 5; i++){
+    notes[i].setChannel(midiChannel);
   }
 }
 
@@ -285,9 +543,9 @@ void ChangeTremoloRange(bool up){
 void ChangePreset(bool up){
   //changes the Preset one number up/down with overroll at 0..4
   //reset midi notes
-  for(int i = 0; i<=5; i++){
+  for(int i = 0; i < 5; i++){
     //mute all notes
-    PlayNote(notes[currPreset][i], false);
+    notes[i].play(false);
   }
   //decrement currPreset
   lastPreset = currPreset;
@@ -296,6 +554,9 @@ void ChangePreset(bool up){
     currPreset += 4;
   } else if(currPreset >=4){
     currPreset -= 4;
+  }
+  for(int i = 0; i < 5; i++){
+    notes[i].set(midi, getHexNote(presets[currPreset][i]), presetModes[currPreset][i], midiChannel);
   }
   //use leds to display currently selected preset
   UpdateLed();
@@ -365,78 +626,13 @@ void UpdateTremolo(){
     }
     switch(tremoloMode){
     case 0:  // Pitch Down
-      PitchWheelChange(tremoloRange * (-(tremoloValue * 8)/12));
+      midi.pitchBend(tremoloRange * (-(tremoloValue * 8)/12), midiChannel);
       break;
     case 1:  //Pitch Up
-      PitchWheelChange(tremoloRange * ((tremoloValue * 8)/12));
+      midi.pitchBend(tremoloRange * ((tremoloValue * 8)/12), midiChannel);
       break;
     case 2:  // Pressure
-      FilterChange(((tremoloRange * tremoloValue/8)/12));
+      midi.monoPressure(((tremoloRange * tremoloValue/8)/12), midiChannel);
       break;
     }
-}
-
-// Value is +/- 8192
-void PitchWheelChange(int value) {
-    unsigned int change = 0x2000 + value;  //  0x2000 == No Change
-    unsigned char low = change & 0x7F;  // Low 7 bits
-    unsigned char high = (change >> 7) & 0x7F;  // High 7 bits
-    SendMidi(0xE0, low, high);
-}
-
-void FilterChange(int value){
-  //value in 0..127
-  for(int i=0; i<6; i++){
-    if(stateNotes[i] != 0){
-      //0xA0 = pressure message for aftertouch from 0..127
-      SendMidi(0xA0, notes[currPreset][i], value);
-    }
-  }
-}
-
-void PlayNote(int pitch, bool on){
-  //send 0x90 command - play note - with 0x00 (note off) or 0x45 (not on) velocity
-  SendMidi(0x90, pitch, on?0x45:0x00);
-}
-
-// plays a MIDI note. Doesn't check to see that cmd is greater than 127, or that
-// data values are less than 127:
-void SendMidi(int cmd, int pitch, int velocity) {
-  //Serial.print("Note: " + (String) notes[i] + "\n");
-  int firstByte = cmd & 0xF0;
-  firstByte |= (midiChannel & 0x0F);
-  Serial.write(firstByte);
-  Serial.write(pitch);
-  Serial.write(velocity);
-
-  //Debug Code to print out 
-  // String str = "\nPresets: \n";
-  // for(int i = 0; i < presetCount; i++){
-  //   for(int j = 0; j < 6; j++){
-  //     str += (String)notes[i][j] + " - ";
-  //   }
-  //   str += "\n";
-  // }
-  // Serial.print(str);
-  
-  //Debug Code to print all Input states
-  // Serial.print("N1: " + (String)stateNotes[0] + 
-  //             " N2: " + (String)stateNotes[1] + 
-  //             " N3: " + (String)stateNotes[2] + 
-  //             " N4: " + (String)stateNotes[3] + 
-  //             " N5: " + (String)stateNotes[4] + 
-  //             " N6: " + (String)stateNotes[5] + 
-  //             " UP: " + (String)stateUp + 
-  //             " DOWN: " + (String)stateDown + 
-  //             // " START: " + (String)stateStart + 
-  //             " TREMOLO: " + (String)stateTremolo + 
-  //             " SELECT: " + (String)stateSelect + 
-  //             " CUP: " + (String)stateDpadUp + 
-  //             " CDOWN: " + (String)stateDpadDown + 
-  //             " CLEFT: " + (String)stateDpadLeft + 
-  //             " CRIGHT: " + (String)stateDpadRight + 
-  //             " CMID: " + (String)stateDpadAll + 
-  //             " CMIDS: " + (String)stateShift +
-  //             " currPreset: " + (String)currPreset + "\n"
-  //             );
 }
