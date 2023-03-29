@@ -30,9 +30,9 @@ class MidiWriter{
       // Serial.print(" - ");
       // Serial.print(data2, HEX);
       // Serial.print(" \n");
-      // Serial.write(firstByte);
-      // Serial.write(data1);
-      // Serial.write(data2);
+      Serial.write(firstByte);
+      Serial.write(data1);
+      Serial.write(data2);
     }
 
     void noteOnOff(int note, int channel, bool on){
@@ -48,11 +48,12 @@ class MidiWriter{
         write(0xE0, channel, low, high);
     }
     
-    void monoPressure(int value, int channel){
+    void monoPressure(int noteValue, int value, int channel){
       //sends pressure message for monophonic aftertouch. there's also a message for polyphonic aftertoucht
       //value in 0..127
       //0xA0 = pressure message for aftertouch from 0..127
-      write(0xA0, 0, value, 0);
+      // Serial.print("\n " + (String)value + " \n");
+      write(0xA0, channel, noteValue, value);
     }
 };
 
@@ -194,6 +195,135 @@ class RollingAverage {
     uint32_t bufferCount;
 };
 
+class Button{
+  public:
+    bool state = false;
+    bool lastState = false;
+    bool pressed = false;
+    bool released = false;
+    int pin = 0;
+
+    Button(){
+      
+    }
+
+    Button(int pinNumber){
+      //Initialize button input
+      pin = pinNumber;
+      pinMode(pinNumber, INPUT);
+    }
+
+    void update(){
+      //call periodically
+      lastState = state;
+      state = digitalRead(pin);
+      pressed = !lastState && state; //was pressed in this iteration
+      released = lastState && !state; //was released in this iteration
+    }
+};
+
+class LedBar{
+  //handles the 4 leds, blinks them, sets brightness through pwm
+  private:
+    int* pins;
+    int blinkCounter = 0;
+    int numericValue = 0; 
+    int lastMillis = 0;
+    int brightness = 0;
+    int brightCounter = 0;
+    int darkCounter = 0;
+    int brightTime = 100;
+    int darkTime = 0;
+
+  public:
+
+    LedBar(){
+      //empty default constructor
+    }
+
+    LedBar(int* ledPins){
+      pins = ledPins;
+      for(int i=0; i<4; i++){
+        pinMode(ledPins[i], OUTPUT);
+      }
+      setBrightness(0);
+    }
+
+    void update(){
+      int16_t mlls = millis();
+      int16_t deltat = mlls - lastMillis;
+      lastMillis = mlls;
+      //call on every cycle
+      if(blinkCounter > 0){
+        blinkCounter -= deltat;        
+      } else {
+        ShowBinary(numericValue);
+      }
+
+      if(brightCounter > 0){
+        brightCounter -= deltat;
+        setAll(false);
+        if(brightCounter <= 0){
+          // brightnesscounter done, reset counter
+          darkCounter = darkTime;
+
+        }
+      }
+      if(darkCounter > 0){
+        darkCounter -= deltat;
+        if(darkCounter <= 0){
+          brightCounter = brightTime;
+        }
+      }
+    }
+
+    void ShowBinary(int value){
+      numericValue = value;
+      bool bits[8];
+      for (int i = 0; i < 4; i++) {
+        bits[i] = ((value) >> (i)) & 0x01;
+      }
+      setLeds(bits);
+    }
+
+    void setLeds(bool values[4]){
+      for(int i=0; i<4; i++){
+        setLed(i, values[i]);
+      }
+    }
+
+    void setLed(int led, bool value){
+      digitalWrite(pins[led], !value);
+    }
+
+    void setAll(bool on){
+      bool lds[4] = {on,on,on,on};
+      setLeds(lds);
+    }
+
+    void setBrightness(int value){
+      //set Brightness from 0 to 4
+      brightness = value;
+      int16_t brightTimes[5] = {20, 20, 100, 200, 500};
+      int16_t darkTimes[5] = {0, 1, 100, 200, 500};
+      darkTime = darkTimes[value];
+      brightTime = brightTimes[value];
+      brightCounter = brightTime;
+      darkCounter = darkTime;
+    }
+
+    void blink(int duration){
+      //blinks duration in ms all LEDs
+      blinkCounter = duration;
+      setAll(true);
+    }
+
+    void setValue(int value){
+      //set the value to be displayed
+      numericValue = value;
+    }
+};
+
 const int pinNotes[5] = {6,7,8,9,10};
 const int pinLeds[4] = {2,5,4,3};
 
@@ -205,9 +335,23 @@ const int pinDpadUp = A1;
 const int pinDpadDown = A2;
 const int pinDpadLeft = A3;
 const int pinDpadRight = A4;
-const int pinShift = 13;
-const int pinDpadAll = A5;
+const int pinStart = 13;
+const int pinDpadMid = A5;
 const int pinSlide = A6;
+
+Button btn_up(pinUp);
+Button btn_down(pinDown);
+Button btn_select(pinSelect);
+Button btn_start(pinStart);
+Button btn_dup(pinDpadUp);
+Button btn_ddown(pinDpadDown);
+Button btn_dleft(pinDpadLeft);
+Button btn_dright(pinDpadRight);
+Button btn_dmid(pinDpadMid);
+Button btn_notes[5];
+
+LedBar leds(pinLeds);
+
 
 const int presetCount = 4;
 //4 presets of 6 notes each. May be edited later by user
@@ -264,30 +408,10 @@ int midiChannel = 0x00; //stores the midichannel 0-15, 0 = all channels
 
 RollingAverage slideVal(50);
 
-bool stateNotes[5] = {0, 0, 0, 0, 0};
-bool stateUp = 0;
-bool stateDown = 0;
 int stateTremolo = 0; //amount of tremolo pressed, 1023 when released, 0 when pressed down
-bool stateSelect = 0;
-bool stateDpadUp = 0;
-bool stateDpadDown = 0;
-bool stateDpadLeft = 0;
-bool stateDpadRight = 0;
-bool stateShift = 0;
-bool stateDpadAll = 0;
 uint32_t stateSlide = 0;
 
-bool lastStateNotes[5] = {0,0,0,0,0};
-bool lastStateUp = 0;
-bool lastStateDown = 0;
 int lastStateTremolo = 0;
-bool lastStateSelect = 0;
-bool lastStateDpadUp = 0;
-bool lastStateDpadDown = 0;
-bool lastStateDpadLeft = 0;
-bool lastStateDpadRight = 0;
-bool lastStateShift = 0;
-bool lastStateDpadAll = 0;
 int lastStateSlide = 0;
 
 MidiWriter midi;
@@ -296,56 +420,32 @@ Note notes[5];
 void setup() {
   // Set MIDI baud rate:
   midi = MidiWriter();
+  leds.setValue(currPreset);
 
   for(int i = 0; i < 5; i++){
-    pinMode(pinNotes[i], INPUT);
+    btn_notes[i] = Button(pinNotes[i]);
     notes[i] = Note(midi, getHexNote(presets[0][i]), presetModes[0][i], midiChannel);
-  }
-
-  pinMode(pinUp, INPUT);
-  pinMode(pinDown, INPUT);
-  pinMode(pinTremolo, INPUT);
-  pinMode(pinSelect, INPUT);
-  pinMode(pinDpadUp, INPUT);
-  pinMode(pinDpadDown, INPUT);
-  pinMode(pinDpadLeft, INPUT);
-  pinMode(pinDpadRight, INPUT);
-  pinMode(pinShift, INPUT);
-  pinMode(pinDpadAll, INPUT);
-  pinMode(pinSlide, INPUT);
-
-  pinMode(LED_BUILTIN, OUTPUT);
-  for(int i = 0; i <= 3; i++){
-    pinMode(pinLeds[i], OUTPUT);
   }
 }
 
 void loop() {
-  for(int i = 0; i <= 4; i++){
-    lastStateNotes[i] = stateNotes[i];
-    stateNotes[i] = digitalRead(pinNotes[i]);
-  }
-
-  lastStateUp = stateUp;
-  stateUp = digitalRead(pinUp);
-  lastStateDown = stateDown;
-  stateDown = digitalRead(pinDown);
   lastStateTremolo = stateTremolo;
   stateTremolo = analogRead(pinTremolo);
-  lastStateSelect = stateSelect;
-  stateSelect = digitalRead(pinSelect);
-  lastStateDpadUp = stateDpadUp;
-  stateDpadUp = digitalRead(pinDpadUp);
-  lastStateDpadDown = stateDpadDown;
-  stateDpadDown = digitalRead(pinDpadDown);
-  lastStateDpadLeft = stateDpadLeft;
-  stateDpadLeft = digitalRead(pinDpadLeft);
-  lastStateDpadRight = stateDpadRight;
-  stateDpadRight = digitalRead(pinDpadRight);
-  lastStateShift = stateShift;
-  stateShift = digitalRead(pinShift);
-  lastStateDpadAll = stateDpadAll;
-  stateDpadAll = digitalRead(pinDpadAll);
+
+  btn_up.update();
+  btn_down.update();
+  btn_select.update();
+  btn_start.update();
+  btn_dup.update();
+  btn_ddown.update();
+  btn_dleft.update();
+  btn_dright.update();
+  btn_dmid.update();
+
+  for(int i = 0; i<5; i++){
+    btn_notes[i].update(); 
+  }
+
   lastStateSlide = stateSlide;
   slideVal.add(analogRead(pinSlide));
   stateSlide = slideVal.get();
@@ -365,16 +465,16 @@ void loop() {
   } else if(abs(stateSlide - 500) <= tolerance){
     slideNote = 6;
   }  
-  Serial.print("SlideVal: ");
-  Serial.print(slideNote);
-  Serial.print("\n");
+  // Serial.print("SlideVal: ");
+  // Serial.print(slideNote);
+  // Serial.print("\n");
 
-  if(stateSelect && !lastStateSelect){
+  if(btn_select.pressed){
     // hero power button pressed
-    if(stateShift){
+    if(btn_start.state){
       // tuning/ shift pressed - change mode (single note, major chord, minor chord ..) for all active notes
       for (int i=0; i<5; i++){
-        if (stateNotes[i]){
+        if (btn_notes[i].state){
           notes[i].changeMode(true);
           notes[i].play(true);
         }
@@ -385,14 +485,14 @@ void loop() {
     }
   }
 
-  if(!lastStateUp && stateUp || (!lastStateDown && stateDown)){
-    if(stateDpadAll){
+  if(btn_up.pressed || btn_down.pressed){
+    if(btn_dmid.state){
       //currently editing Midi Channel
-      ChangeMidiChannel(stateUp);
+      ChangeMidiChannel(btn_up.state);
     } else {
-      if(stateShift){
+      if(btn_start.state){
         //Tune Notes up/down
-        TuneNotes(stateUp);
+        TuneNotes(btn_up.state);
       } else {
         //Normal strum, play notes
         PlayNotes();            
@@ -401,8 +501,8 @@ void loop() {
   }
 
   //reset notes when note button is released
-  for(int i = 0; i <= 4; i++){
-    if(!stateNotes[i] && lastStateNotes[i]){
+  for(int i = 0; i < 5; i++){
+    if(btn_notes[i].released){
       //Mute every released note
       notes[i].play(false);
       UpdateTremolo();
@@ -415,38 +515,37 @@ void loop() {
   }
 
   //read D-Pad LEFT
-  if(stateDpadLeft && !lastStateDpadLeft){
+  if(btn_dleft.pressed){
     ChangeTremoloMode(true);    
   }
 
   //read D-Pad RIGHT
-  if(stateDpadRight && !lastStateDpadRight){
+  if(btn_dright.pressed){
     ChangeTremoloMode(false);
   }
 
   //read dpad UP
-  if(!lastStateDpadUp && stateDpadUp){
+  if(btn_dup.pressed){
     //dpad up pressed - change preset
     ChangeTremoloRange(true);
   }
 
   //read D-Pad DOWN
-  if(!lastStateDpadDown && stateDpadDown){
+  if(btn_ddown.pressed){
     //cross down pressed
     ChangeTremoloRange(false);
   }
 
-  //Read D-pad middle to change Midi Channel
-  if(stateDpadAll){
-    //cross pressed down completely
-    bool bits[8];
-    for (int i = 0; i < 4; i++) {
-      bits[i] = ((midiChannel + 0x01) >> (i)) & 0x01;
-    }
-    UpdateStrobe(50, bits);
-  }else{
-    UpdateLed();    
+  if(btn_dmid.pressed){
+    leds.setBrightness(2);
+    leds.setValue(midiChannel);
   }
+  if(btn_dmid.released){
+    leds.setBrightness(0);
+    leds.setValue(currPreset);
+  }
+
+  leds.update();
     
   // // Debug Code to print all Input states
   // Serial.print("N1: " + (String)stateNotes[0] + 
@@ -475,7 +574,7 @@ bool strobeState = false;
 void PlayNotes(){
   //Plays the notes of the currently pressed note buttons
   for(int i = 0; i < 5; i++){
-    if(stateNotes[i] != 0){
+    if(btn_notes[i].state){
       notes[i].play(true);
       UpdateTremolo();
     }
@@ -485,12 +584,12 @@ void PlayNotes(){
 void TuneNotes(bool up){
   //tunes the curently pressed note buttones one semitone up/down
   bool range = false;
-  for(int i = 0; i<5; i++){
+  for(int i = 0; i < 5; i++){
     //make sure, that no note exceeds 0x00..0x77
     range = (((notes[i].getRoot() + 1) >= 0x77) && up) || (((notes[i].getRoot() - 1) < 0x00) && !up) || range;
   }
-  for(int i = 0; i<5; i++){
-    if(stateNotes[i]){
+  for(int i = 0; i < 5; i++){
+    if(btn_notes[i].state){
       //Mute all notes
       notes[i].play(false);
       if(!range){
@@ -513,6 +612,7 @@ void ChangeMidiChannel(bool up){
   for(int i = 0; i < 5; i++){
     notes[i].setChannel(midiChannel);
   }
+  leds.setValue(midiChannel);
 }
 
 void ChangeTremoloMode(bool up){
@@ -524,7 +624,7 @@ void ChangeTremoloMode(bool up){
   } else if(tremoloMode >= tremoloModeCount){
     tremoloMode -= tremoloModeCount;
   }
-  BlinkLeds(80);
+  leds.blink(80);
 }
 
 void ChangeTremoloRange(bool up){
@@ -535,7 +635,7 @@ void ChangeTremoloRange(bool up){
   } else if(tremoloRange <= 0){
     tremoloRange = 1;
   } else {
-    BlinkLeds(80);
+    leds.blink(80);
   }
   UpdateTremolo();
 }
@@ -559,59 +659,8 @@ void ChangePreset(bool up){
     notes[i].set(midi, getHexNote(presets[currPreset][i]), presetModes[currPreset][i], midiChannel);
   }
   //use leds to display currently selected preset
-  UpdateLed();
-}
-
-void UpdateStrobe(int rate, bool states[4]){
-  //call this function on every update to flicker the LEDs
-  //states indicates which LEDs are turned off, and which are flickering
-  strobeCounter -= 1;
-  if(strobeCounter <= 0){
-    strobeState = !strobeState;
-    strobeCounter = rate;
-    for(int i = 0; i < 4; i++){
-      if(states[i]){
-        digitalWrite(pinLeds[i], strobeState?HIGH:LOW); //flicker active LEDs  
-      } else{
-        digitalWrite(pinLeds[i], HIGH); //turn off unactive LEDs
-      }
-    }
-  }
-}
-
-void BlinkLeds(int time){
-  ledCounter = time;
-  lastMillis = millis();
-  for(int i = 0; i <= 3; i++){
-    digitalWrite(pinLeds[i], LOW);
-  }
-}
-
-void UpdateLed(){
-  if(ledCounter > 0){
-    //perform blink
-    int mils = millis();
-    ledCounter -= mils - lastMillis;
-    lastMillis = mils;
-    if(ledCounter <= 0){
-      //counter done
-      ledCounter = 0;
-      for(int i = 0; i <= 3; i++){
-        digitalWrite(pinLeds[i], HIGH);
-      }
-    }
-  } else{
-    //display preset number
-    if(currPreset != lastPreset || lastStateDpadAll){
-      for(int i = 0; i<=3; i++){
-        if(i == currPreset){
-          digitalWrite(pinLeds[i], LOW);
-        } else{
-          digitalWrite(pinLeds[i], HIGH);
-        }
-      }    
-    }    
-  }
+  leds.setValue(currPreset);
+  leds.update();
 }
 
 void ResetTremolo(){
@@ -632,7 +681,11 @@ void UpdateTremolo(){
       midi.pitchBend(tremoloRange * ((tremoloValue * 8)/12), midiChannel);
       break;
     case 2:  // Pressure
-      midi.monoPressure(((tremoloRange * tremoloValue/8)/12), midiChannel);
+      for (int i=0; i<5; i++){
+        if(btn_notes[i].state){
+          midi.monoPressure(notes[i].getRoot(), ((tremoloRange * tremoloValue/8)/12), midiChannel);
+        }
+      }
       break;
     }
 }
