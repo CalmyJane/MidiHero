@@ -9,6 +9,7 @@
 // This code is written by Calmy Jane and based on various examples
 //check out the readme for more information
 
+// #include <EEPROM.h>
 
 class MidiWriter{
   public:
@@ -68,10 +69,10 @@ class Note{
   private:
     int root = 0x3C;
     NoteMode mode = singleTone;
-    bool playing = false;
     MidiWriter midi;
     int midiChannel = 0;
   public:
+    bool playing = false;
     Note(){
       //default constructor
     }
@@ -232,11 +233,15 @@ class LedBar{
     int brightness = 0;
     int brightCounter = 0;
     int darkCounter = 0;
-    int brightTime = 100;
-    int darkTime = 0;
+    int16_t periods[3] = {100, 10, 100};
+    int16_t dutys[3] = {100, 1, 10};
 
+
+    int pwm_period = 100; //10ms period-time = 100Hz
+    int pwm_duty = 100;  //10ms dutycycle = 0,5% dutycycle
+    int pwm_count = 0; //ms since period begin
   public:
-
+    bool inverted;
     LedBar(){
       //empty default constructor
     }
@@ -259,21 +264,16 @@ class LedBar{
       } else {
         ShowBinary(numericValue);
       }
-
-      if(brightCounter > 0){
-        brightCounter -= deltat;
+      pwm_period = periods[brightness];
+      pwm_duty = dutys[brightness];
+      pwm_count += deltat;
+      if(pwm_count < pwm_duty){
+        ShowBinary(numericValue);
+      } else if(pwm_count < pwm_period){
         setAll(false);
-        if(brightCounter <= 0){
-          // brightnesscounter done, reset counter
-          darkCounter = darkTime;
-
-        }
-      }
-      if(darkCounter > 0){
-        darkCounter -= deltat;
-        if(darkCounter <= 0){
-          brightCounter = brightTime;
-        }
+      } else {
+        //period time has passed
+        pwm_count = 0;
       }
     }
 
@@ -293,7 +293,8 @@ class LedBar{
     }
 
     void setLed(int led, bool value){
-      digitalWrite(pins[led], !value);
+      // digitalWrite(pins[led], !(!value != inverted));
+      digitalWrite(pins[led], !value != inverted);
     }
 
     void setAll(bool on){
@@ -304,12 +305,6 @@ class LedBar{
     void setBrightness(int value){
       //set Brightness from 0 to 4
       brightness = value;
-      int16_t brightTimes[5] = {20, 20, 100, 200, 500};
-      int16_t darkTimes[5] = {0, 1, 100, 200, 500};
-      darkTime = darkTimes[value];
-      brightTime = brightTimes[value];
-      brightCounter = brightTime;
-      darkCounter = darkTime;
     }
 
     void blink(int duration){
@@ -322,6 +317,17 @@ class LedBar{
       //set the value to be displayed
       numericValue = value;
     }
+};
+
+class ConfigData{
+  //contains data and stores/retrieves to/from EEPROM
+  public:
+    int midiChannel = 0;
+    int presets[16][5];
+    int presetModes[16][5];
+
+    ConfigData(){
+    };
 };
 
 const int pinNotes[5] = {6,7,8,9,10};
@@ -352,17 +358,41 @@ Button btn_notes[5];
 
 LedBar leds(pinLeds);
 
-
 const int presetCount = 4;
 //4 presets of 6 notes each. May be edited later by user
 String presets[presetCount][5] = {{"C4", "F4", "G4", "A4", "C5"}, // C F G A for chords
                              {"C4", "D#4", "F4", "G4", "A#4"}, //c-minor pentatonik
                              {"C4", "D4", "E4", "G4", "A4"}, //c-major pentatonik
-                             {"A3", "B3", "D4", "E4", "A5"}};// 4 Chords for Blitskrieg bob (A3-A3-D4-E4, Chorus D4-D4-A3-D4-A3 D4-D4-B3-D4-A3)
+                             {"A3", "B3", "D4", "E4", "A5"},  // 4 Chords for Blitskrieg bob (A3-A3-D4-E4, Chorus D4-D4-A3-D4-A3 D4-D4-B3-D4-A3)
+                            //  {"C4", "D4", "E4", "F4", "G4"},
+                            //  {"C4", "D4", "E4", "F4", "G4"},
+                            //  {"C4", "D4", "E4", "F4", "G4"},
+                            //  {"C4", "D4", "E4", "F4", "G4"},
+                            //  {"C4", "D4", "E4", "F4", "G4"},
+                            //  {"C4", "D4", "E4", "F4", "G4"},
+                            //  {"C4", "D4", "E4", "F4", "G4"},
+                            //  {"C4", "D4", "E4", "F4", "G4"},
+                            //  {"C4", "D4", "E4", "F4", "G4"},
+                            //  {"C4", "D4", "E4", "F4", "G4"},
+                            //  {"C4", "D4", "E4", "F4", "G4"},
+                            //  {"C4", "D4", "E4", "F4", "G4"}
+};
 int presetModes[presetCount][5] = {{0,0,0,0,0},
                                    {0,0,0,0,0},
                                    {0,0,0,0,0},
                                    {1,1,1,1,0}, //chord-preset containing some chords
+                                  //  {0,0,0,0,0},
+                                  //  {0,0,0,0,0},
+                                  //  {0,0,0,0,0},
+                                  //  {0,0,0,0,0},
+                                  //  {0,0,0,0,0},
+                                  //  {0,0,0,0,0},
+                                  //  {0,0,0,0,0},
+                                  //  {0,0,0,0,0},
+                                  //  {0,0,0,0,0},
+                                  //  {0,0,0,0,0},
+                                  //  {0,0,0,0,0},
+                                  //  {0,0,0,0,0}
 };
 
 int getHexNote(String strNote){
@@ -406,7 +436,7 @@ int lastMillis = 0; //used to calculate delta t
 
 int midiChannel = 0x00; //stores the midichannel 0-15, 0 = all channels
 
-RollingAverage slideVal(50);
+// RollingAverage slideVal(5);
 
 int stateTremolo = 0; //amount of tremolo pressed, 1023 when released, 0 when pressed down
 uint32_t stateSlide = 0;
@@ -414,24 +444,58 @@ uint32_t stateSlide = 0;
 int lastStateTremolo = 0;
 int lastStateSlide = 0;
 
+bool resetEEPROM = false;
+
 MidiWriter midi;
 Note notes[5];
 
-void setup() {
-  // Set MIDI baud rate:
-  midi = MidiWriter();
-  leds.setValue(currPreset);
+Note presetList[16][5];
 
+// void readEEPROM(){
+//   ConfigData cfg;
+//   EEPROM.get(0, cfg);
+//   midiChannel = cfg.midiChannel;
+//   for(int i=0; i<16; i++){
+//     for(int j=0; j<5; j++) {
+//       presetList[i][j] = Note(midi, cfg.presets[i][j], cfg.presetModes[i][j], midiChannel);
+//     }
+//   }
+// }
+
+void setup() {
+  // Serial.begin(9600);
+  // if(resetEEPROM){
+  //   ConfigData newcfg = ConfigData();
+  //   newcfg.midiChannel = 0;
+  //   for(int i=0; i<16; i++){
+  //     for(int j=0; j<5; j++){
+  //       newcfg.presets[i][j] = getHexNote(presets[i][j]);
+  //       newcfg.presetModes[i][j] = presetModes[i][j];
+  //     }
+  //   }
+  //   EEPROM.put(0, newcfg);
+  // }
+  // readEEPROM();
+
+  // Init midi
+  midi = MidiWriter();
+  //Init LEDs
+  leds.setValue(currPreset);
+  leds.setBrightness(0);
+  //Init Note Buttons
   for(int i = 0; i < 5; i++){
     btn_notes[i] = Button(pinNotes[i]);
     notes[i] = Note(midi, getHexNote(presets[0][i]), presetModes[0][i], midiChannel);
   }
+  //Other buttons are Initialized on declaration
 }
 
 void loop() {
+      
   lastStateTremolo = stateTremolo;
   stateTremolo = analogRead(pinTremolo);
 
+  //read buttons and update current states
   btn_up.update();
   btn_down.update();
   btn_select.update();
@@ -446,28 +510,8 @@ void loop() {
     btn_notes[i].update(); 
   }
 
-  lastStateSlide = stateSlide;
-  slideVal.add(analogRead(pinSlide));
-  stateSlide = slideVal.get();
-  // TODO properly read slide bar
-  int tolerance = 50;
-  int slideNote = 0;
-  if(abs(stateSlide - 140) <= tolerance){
-    slideNote = 1;
-  } else if(abs(stateSlide - 350) <= tolerance){
-    slideNote = 2;
-  } else if(abs(stateSlide - 600) <= tolerance){
-    slideNote = 3;
-  } else if(abs(stateSlide - 770) <= tolerance){
-    slideNote = 4;
-  } else if(abs(stateSlide - 1000) <= tolerance){
-    slideNote = 5;
-  } else if(abs(stateSlide - 500) <= tolerance){
-    slideNote = 6;
-  }  
-  // Serial.print("SlideVal: ");
-  // Serial.print(slideNote);
-  // Serial.print("\n");
+  //read slide bar value
+  readSlideBar();
 
   if(btn_select.pressed){
     // hero power button pressed
@@ -500,11 +544,42 @@ void loop() {
     }
   }
 
+  //check for Hammeron
+  for(int i=0; i<5; i++){
+    if(btn_notes[i].pressed){
+      bool hammeron = false;
+      for(int j=0; j<i; j++){
+        hammeron = hammeron || notes[j].playing;
+      }
+      for(int j=0; j<5-i; j++){
+        hammeron = hammeron && !notes[4-j].playing;
+      }
+      if(hammeron){
+        for(int j=0; j<5; j++){
+          notes[j].play(false);
+        }
+        notes[i].play(true);
+      }
+    }
+  }
+
   //reset notes when note button is released
   for(int i = 0; i < 5; i++){
     if(btn_notes[i].released){
       //Mute every released note
+      int pulloff = -1;
+      for(int j = 0; j<i; j++){
+        if(btn_notes[j].state && !notes[j].playing && notes[i].playing){
+          pulloff = j;
+        }
+      }
+      if(pulloff >= 0){
+        for(int j = 0; j<5; j++){
+          notes[j].play(j==pulloff);
+        }
+      }
       notes[i].play(false);
+
       UpdateTremolo();
     }
   }
@@ -536,40 +611,116 @@ void loop() {
     ChangeTremoloRange(false);
   }
 
-  if(btn_dmid.pressed){
-    leds.setBrightness(2);
-    leds.setValue(midiChannel);
-  }
-  if(btn_dmid.released){
-    leds.setBrightness(0);
-    leds.setValue(currPreset);
+  leds.setValue(currPreset);
+  leds.setBrightness(0);
+  if(btn_dmid.state){
+
+    if(btn_start.state && anyNote()){
+      leds.setBrightness(2);
+      leds.setValue(15);
+    } else {
+      leds.setBrightness(1);
+      leds.setValue(midiChannel);
+    }
   }
 
+  // if(btn_start.released){
+  //   if(btn_dmid.state && anyNote()){
+  //     if(anyNote()){
+  //       int adr = 0;
+  //       bool btns[4] = {btn_notes[0].state, btn_notes[1].state, btn_notes[2].state, btn_notes[3].state};
+  //       for (int i = 0; i < 4; ++i) {
+  //         adr |= (btns[i] << (3 - i));
+  //       }
+  //       writePreset(adr, notes);        
+  //     } else {
+  //       writeSystem();
+  //     }
+  //   }
+  // }
+
   leds.update();
-    
-  // // Debug Code to print all Input states
-  // Serial.print("N1: " + (String)stateNotes[0] + 
-  //             " N2: " + (String)stateNotes[1] + 
-  //             " N3: " + (String)stateNotes[2] + 
-  //             " N4: " + (String)stateNotes[3] + 
-  //             " N5: " + (String)stateNotes[4] + 
-  //             " UP: " + (String)stateUp + 
-  //             " DOWN: " + (String)stateDown + 
-  //             // " START: " + (String)stateStart + 
-  //             " SELECT: " + (String)stateSelect + 
-  //             " CUP: " + (String)stateDpadUp + 
-  //             " CDOWN: " + (String)stateDpadDown + 
-  //             " CLEFT: " + (String)stateDpadLeft + 
-  //             " CRIGHT: " + (String)stateDpadRight + 
-  //             " CMID: " + (String)stateDpadAll + 
-  //             " Shift: " + (String)stateShift +
+
+  // Debug Code to print all Input states
+  // Serial.print("N1: " + (String)btn_notes[0].state + 
+  //             " N2: " + (String)btn_notes[1].state + 
+  //             " N3: " + (String)btn_notes[2].state + 
+  //             " N4: " + (String)btn_notes[3].state + 
+  //             " N5: " + (String)btn_notes[4].state + 
+  //             " UP: " + (String)btn_up.state + 
+  //             " DOWN: " + (String)btn_down.state + 
+  //             " START: " + (String)btn_start.state + 
+  //             " SELECT: " + (String)btn_select.state + 
+  //             " DUP: " + (String)btn_dup.state + 
+  //             " DDOWN: " + (String)btn_ddown.state + 
+  //             " DLEFT: " + (String)btn_dleft.state + 
+  //             " DRIGHT: " + (String)btn_dright.state + 
+  //             " DMID: " + (String)btn_dmid.state + 
   //             " TREMOLO: " + (String)stateTremolo + 
   //             " Slide: " + (String)stateSlide + "\n"
   //             );
+
+
+
 }
 
 int strobeCounter = 0;
 bool strobeState = false;
+
+void readSlideBar(){
+  //read slide-bar TOBEDONE
+  // lastStateSlide = stateSlide;
+  // slideVal.add(analogRead(pinSlide));
+  // stateSlide = slideVal.get();
+  // int tolerance = 50;
+  // int slideNote = 0;
+  // if(abs(stateSlide - 140) <= tolerance){
+  //   slideNote = 1;
+  // } else if(abs(stateSlide - 350) <= tolerance){
+  //   slideNote = 2;
+  // } else if(abs(stateSlide - 600) <= tolerance){
+  //   slideNote = 3;
+  // } else if(abs(stateSlide - 770) <= tolerance){
+  //   slideNote = 4;
+  // } else if(abs(stateSlide - 1000) <= tolerance){
+  //   slideNote = 5;
+  // } else if(abs(stateSlide - 500) <= tolerance){
+  //   slideNote = 6;
+  // }  
+  // Serial.print("SlideVal: ");
+  // Serial.print(slideNote);
+  // Serial.print("\n");
+}
+
+// void writePreset(int adress, Note notes[4]){
+//   //writes a preset to EEPROM
+//   ConfigData cfg;
+//   EEPROM.get(0, cfg);
+//   for(int i=0; i<5; i++){
+//     cfg.presets[adress][i] = notes[i].getRoot();
+//     cfg.presetModes[adress][i] = notes[i].getRoot();
+//   }
+//   EEPROM.put(0, cfg);
+// }
+
+// void writeSystem(){
+//   //writes current midichannel and start preset to memory
+//   ConfigData cfg;
+//   EEPROM.get(0, cfg);
+//   cfg.midiChannel = midiChannel;
+//   EEPROM.put(0, cfg);
+// }
+
+bool anyNote(){
+  //returns if any note button is pressed
+  bool any = false;
+  for(int i=0; i<5; i++){
+    if(btn_notes[i].state){
+      any = true;
+    };
+  }
+  return any;
+}
 
 void PlayNotes(){
   //Plays the notes of the currently pressed note buttons
@@ -652,8 +803,8 @@ void ChangePreset(bool up){
   currPreset += up?1:-1;
   if(currPreset < 0){
     currPreset += 4;
-  } else if(currPreset >=4){
-    currPreset -= 4;
+  } else if(currPreset >=presetCount){
+    currPreset -= presetCount;
   }
   for(int i = 0; i < 5; i++){
     notes[i].set(midi, getHexNote(presets[currPreset][i]), presetModes[currPreset][i], midiChannel);
