@@ -6,21 +6,21 @@ Btw, this readme was written by chatGPT in a "cool and authentic musician-to-mus
 This groovy repo provides the Arduino code and docs you need to turn a 6-button, PS3-gen GuitarHero controller into a rad MIDI controller. The modded axe sends MIDI notes through a 5-pin MIDI output, making it jam with any standard synth.
 
 ## 🎸 Guitar Components
-![Overview of the Midi Hero Guitar and it's Controls.](pictures/MidiHeroComponents.png)
+![Overview of the Midi Hero Guitar and it's Controls.](pictures/MidiHeroTitle.png)
 
 
 ## 🤘 Usage Instructions
+
+![Overview of the Midi Hero Guitar and it's Controls.](pictures/MidiHeroComponents.png)
+
 ### Playing Notes
 To shred a note, press and hold one or more `note` buttons and hit that up/down `trigger`. The note will sustain as long as you hold the `note` button, just like a real guitar, bro! Strum the `trigger` in both directions to play some wicked fast licks.
 
-### Preset Selection
-Your guitar comes preloaded with four sick presets:
-1. C major scale (C, D, E, F, G, A) - the happy one!
-2. E minor pentatonic (E, G, A, Bb, D, E) - unleash your inner rock god!
-3. C major pentatonic (C, D, E, G, A, C) - jam on this groovy scale!
-4. C minor chord on top three notes, G minor chord on bottom three - get ready to riff!
+### Hammer-On / Pull-Off
+While playing any note you can play a hammer-on by pressing any note closer to the body of the guitar while holding a lower note. This note will play as soon as you press the note button and does not require a trigger. You can also play a note, and release the note-button while holding down a note further away from the body. This will play the lower note without an additional trigger.
 
-The active preset shines bright with one of the four `LEDs`. Change presets by pressing the `HeroPower button`.
+### Preset Selection
+Your guitar comes preloaded with 16 presets. A preset contains the currently selected notes and their modes, the current tremolo mode and tremolo range. The LEDs indicate which is selected in binary. Press `d-pad left/right` to change the currently selected preset. Changes you make to a preset will remain until you reboot the guitar, unless you save your preset to permanently keep it on the instrument.
 
 ### Tremolo Functionality
 Rock that `tremolo`! By default, it'll bend your pitch down by one semitone at full extension. You can adjust the bend range from 1 to 12 semitones! To change the range, press the `D-pad up/down`. Navigate the modes and watch for a flash of all `LEDs` to know you've made the switch. If no flash, you've hit the end of the range (1 or 12) - just navigate the other way, man!
@@ -30,14 +30,24 @@ Tremolo modes include:
 * **Pitch Up** - Pitch bends up all notes by 1..12 semitones
 * **Aftertouch** - Sends aftertouch (velocity) messages to modify current notes. With a synth like the Arturia MicroFreak, you can control anything through the modulation matrix - let your creativity flow!
 
-You can change modes by pressing `D-pad left/right`.
+You can change mode for your current preset by pressing `Start`.
 
 ### Guitar Tuning
 Wanna tweak your presets? No problem, dude! Select a preset, then press and hold the `notes` you want to change. Adjust the pitch with `Shift + trigger up/down` for a semitone up or down. Transpose an entire preset by holding all notes and pressing `Shift + trigger up/down`. Just remember, custom presets won't be saved when you restart the guitar - they'll go back to default. But hey, it's a great way to reset if things get to funky!
 
-### MIDI Channel Selection
-By default, your guitar sends notes on MIDI channel 1. We recommend setting your synth to accept all MIDI notes - check the settings! But if you need a specific channel, press the `D-pad` down and use the `up/down trigger` to change the channel. The active channel is shown in binary with flashing LEDs, from Channel 1 (1000) to Channel 15 (1111), and Channel 16 (0000). Rock on!
+### Note Modes
+Each note can have different modes:
+* **Single Tone**
+* **Power chord**
+* **Major chord**
+* **Minor chord**
+Hold the notes you want to change, hold Select and press Start to cycle through their modes.
 
+### MIDI Channel Selection
+By default, your guitar sends notes on MIDI channel 1. We recommend setting your synth to accept all MIDI notes - check the settings! But if you need a specific channel, press the `D-pad` down and use the `up/down trigger` to change the channel. The active channel is shown in binary with flashing LEDs, from Channel 1 (1000) to Channel 15 (1111), and Channel 16 (0000). The channel is stored when device is powered off.
+
+### Saving Presets
+You can save Tremolo mode and range, as well as selected notes and note modes to one of the 16 preset slots. Press d-pad middle button, hold the first 4 buttons (green, red, yellow, blue) to input a binary number, release the d-pad middle button to save. Be careful there is immediate overwrite. Slots 1-4 are blocked and cannot be overwritten.
 ## Schematics
 
 ![Schematic of the arduino and its IOs ](pictures/Schematic.png)
