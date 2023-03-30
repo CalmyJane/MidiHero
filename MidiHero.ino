@@ -9,15 +9,16 @@
 // This code is written by Calmy Jane and based on various examples
 //check out the readme for more information
 
-// #include <EEPROM.h>
+#include <EEPROM.h>
 
 class MidiWriter{
   public:
+    int channel = 0;
     MidiWriter(){
       Serial.begin(31250);
     }
 
-    void write(int cmd, int channel, int data1, int data2){
+    void write(int cmd, int data1, int data2){
       //writes 1-3 bytes
       int firstByte = cmd & 0xF0;
       if(firstByte != 0xF0){
@@ -36,94 +37,93 @@ class MidiWriter{
       Serial.write(data2);
     }
 
-    void noteOnOff(int note, int channel, bool on){
+    void noteOnOff(int note, bool on){
       //0x90 = play note, 0x45 = medium velocity
-      write(0x90, channel, note, on?0x45:0x00);
+      write(0x90, note, on?0x45:0x00);
     }
 
-    void pitchBend(int value, int channel) {   
+    void pitchBend(int value) {   
       // Value is +/- 8192
         unsigned int change = 0x2000 + value;  //  0x2000 == No Change
         unsigned char low = change & 0x7F;  // Low 7 bits
         unsigned char high = (change >> 7) & 0x7F;  // High 7 bits
-        write(0xE0, channel, low, high);
+        write(0xE0, low, high);
     }
     
-    void monoPressure(int noteValue, int value, int channel){
+    void monoPressure(int noteValue, int value){
       //sends pressure message for monophonic aftertouch. there's also a message for polyphonic aftertoucht
       //value in 0..127
       //0xA0 = pressure message for aftertouch from 0..127
       // Serial.print("\n " + (String)value + " \n");
-      write(0xA0, channel, noteValue, value);
+      write(0xA0, noteValue, value);
     }
-};
-
-enum NoteMode {
-  singleTone = 0,     // Note key plays a single tone
-  power = 1,    // Note key plays a power chord, tone, tone + 7 semitones, tone 1 octave
-  major = 2,    // Note key plays a major chord, tone, tone + 4 semitones, tone + 7 semitones
-  minor = 3     // Note key plays a minor chord, tone, tone + 3 semitones, tone + 7 semitones
+    void changeMidiChannel(bool up){
+      //Increments or Decrements the midiChannel with overroll on 0..16
+      channel += up?0x01:-0x01;
+      if(channel > 0x0F){
+        channel -= 0x10;
+      } else if(channel <0x00){
+        channel += 0x10;
+      }
+    }
 };
 
 class Note{
   private:
     int root = 0x3C;
-    NoteMode mode = singleTone;
-    MidiWriter midi;
-    int midiChannel = 0;
+    int mode = 0;
+    // modes:
+    // singleTone = 0,     // Note key plays a single tone
+    // power = 1,    // Note key plays a power chord, tone, tone + 7 semitones, tone 1 octave
+    // major = 2,    // Note key plays a major chord, tone, tone + 4 semitones, tone + 7 semitones
+    // minor = 3     // Note key plays a minor chord, tone, tone + 3 semitones, tone + 7 semitones
+
   public:
     bool playing = false;
     Note(){
       //default constructor
     }
 
-    Note(MidiWriter writer, int value, int noteMode, int channel){
-      set(writer, value, noteMode, channel);
+    Note(MidiWriter midi, int value, int noteMode){
+      set(midi, value, noteMode);
     }
 
-    void set(MidiWriter writer, int value, int noteMode, int channel){
+    void set(MidiWriter midi, int value, int noteMode){
       //set current note value 0xC3 = C4
-      play(false);
-      midiChannel = channel;
-      midi = writer;
+      play(midi, false);
       root = value;
       mode = noteMode;
     }
 
-    void setChannel(int channel){
-      play(false);
-      midiChannel = channel;
-    }
-
-    void setMode(NoteMode value){
+    void setMode(int value){
       mode = value;
     }
 
-    void play(bool on){
+    void play(MidiWriter midi, bool on){
       //send 0x90 command - play note - with 0x00 (note off) or 0x45 (not on) velocity
       if(playing || (!playing && on)){
         switch(mode){
-          case singleTone:
+          case 0:
             //single note
-            midi.noteOnOff(root, midiChannel, on);
+            midi.noteOnOff(root, on);
             break;
-          case power:
+          case 1:
             //power chord
-            midi.noteOnOff(root + 7, midiChannel, on);
-            midi.noteOnOff(root + 12, midiChannel, on);
-            midi.noteOnOff(root, midiChannel, on);
+            midi.noteOnOff(root + 7, on);
+            midi.noteOnOff(root + 12, on);
+            midi.noteOnOff(root, on);
             break;
-          case major:
+          case 2:
             //major chord
-            midi.noteOnOff(root + 4, midiChannel, on);
-            midi.noteOnOff(root + 7, midiChannel, on);
-            midi.noteOnOff(root, midiChannel, on);
+            midi.noteOnOff(root + 4, on);
+            midi.noteOnOff(root + 7, on);
+            midi.noteOnOff(root, on);
             break;
-          case minor:
+          case 3:
             //minor chord
-            midi.noteOnOff(root + 3, midiChannel, on);
-            midi.noteOnOff(root + 7, midiChannel, on);
-            midi.noteOnOff(root, midiChannel, on);
+            midi.noteOnOff(root + 3, on);
+            midi.noteOnOff(root + 7, on);
+            midi.noteOnOff(root, on);
             break;
         }
         //do not send off when note is not playing, avoid "silent" messages
@@ -140,8 +140,8 @@ class Note{
       return root;
     }
 
-    int changeMode(bool up){
-      play(false);
+    int changeMode(MidiWriter midi, bool up){
+      play(midi, false);
       mode = (mode + (up?1:-1));
       if(mode >= 4){
         mode = 0;
@@ -246,7 +246,7 @@ class LedBar{
       //empty default constructor
     }
 
-    LedBar(int* ledPins){
+    LedBar(int ledPins[4]){
       pins = ledPins;
       for(int i=0; i<4; i++){
         pinMode(ledPins[i], OUTPUT);
@@ -319,19 +319,46 @@ class LedBar{
     }
 };
 
-class ConfigData{
-  //contains data and stores/retrieves to/from EEPROM
+class Preset{
   public:
-    int midiChannel = 0;
-    int presets[16][5];
-    int presetModes[16][5];
+    Note notes[5];
+    Preset(){
+      //empty default constructor
+    }
+    Preset(MidiWriter midi, int noteValues[5], int noteModes[5], int tremoloMode){
+      for(int i=0; i<5; i++){
+        notes[i] = Note(midi, noteValues[i], noteModes[i]);
+      }
+    }
+};
 
-    ConfigData(){
+class Config{
+  //contains data and stores/retrieves to/from EEPROM
+  private:
+    int midiChannelAdd = 0;
+    int firstPreset = 0;
+  
+  public:
+    Config(){
     };
+    
+    int8_t readMidiChannel(){
+      int8_t val = 0;
+      EEPROM.get(midiChannelAdd, val);
+      return val;
+    }
+
+    void writeMidiChannel(int8_t channel){
+      EEPROM.put(midiChannelAdd, channel);
+    }
+
+    void readPreset(int number){
+
+    }
 };
 
 const int pinNotes[5] = {6,7,8,9,10};
-const int pinLeds[4] = {2,5,4,3};
+int pinLeds[4] = {2,5,4,3};
 
 const int pinUp = 12;
 const int pinDown = 11;
@@ -358,71 +385,54 @@ Button btn_notes[5];
 
 LedBar leds(pinLeds);
 
-const int presetCount = 4;
-//4 presets of 6 notes each. May be edited later by user
-String presets[presetCount][5] = {{"C4", "F4", "G4", "A4", "C5"}, // C F G A for chords
-                             {"C4", "D#4", "F4", "G4", "A#4"}, //c-minor pentatonik
-                             {"C4", "D4", "E4", "G4", "A4"}, //c-major pentatonik
-                             {"A3", "B3", "D4", "E4", "A5"},  // 4 Chords for Blitskrieg bob (A3-A3-D4-E4, Chorus D4-D4-A3-D4-A3 D4-D4-B3-D4-A3)
-                            //  {"C4", "D4", "E4", "F4", "G4"},
-                            //  {"C4", "D4", "E4", "F4", "G4"},
-                            //  {"C4", "D4", "E4", "F4", "G4"},
-                            //  {"C4", "D4", "E4", "F4", "G4"},
-                            //  {"C4", "D4", "E4", "F4", "G4"},
-                            //  {"C4", "D4", "E4", "F4", "G4"},
-                            //  {"C4", "D4", "E4", "F4", "G4"},
-                            //  {"C4", "D4", "E4", "F4", "G4"},
-                            //  {"C4", "D4", "E4", "F4", "G4"},
-                            //  {"C4", "D4", "E4", "F4", "G4"},
-                            //  {"C4", "D4", "E4", "F4", "G4"},
-                            //  {"C4", "D4", "E4", "F4", "G4"}
+enum NoteNames{
+  _C0, _Cs0, _D0, _Ds0, _E0, _F0, _Fs0, _G0, _Gs0, _A0, _As0, _B0,
+  _C1, _Cs1, _D1, _Ds1, _E1, _F1, _Fs1, _G1, _Gs1, _A1, _As1, _B1,
+  _C2, _Cs2, _D2, _Ds2, _E2, _F2, _Fs2, _G2, _Gs2, _A2, _As2, _B2,
+  _C3, _Cs3, _D3, _Ds3, _E3, _F3, _Fs3, _G3, _Gs3, _A3, _As3, _B3,
+  _C4, _Cs4, _D4, _Ds4, _E4, _F4, _Fs4, _G4, _Gs4, _A4, _As4, _B4,
+  _C5, _Cs5, _D5, _Ds5, _E5, _F5, _Fs5, _G5, _Gs5, _A5, _As5, _B5,
+  _C6, _Cs6, _D6, _Ds6, _E6, _F6, _Fs6, _G6, _Gs6, _A6, _As6, _B6
 };
+
+const int presetCount = 16;
+//4 presets of 6 notes each. May be edited later by user
+NoteNames presets[presetCount][5] = {{_C4, _F4, _G4, _A4, _C5}, // C F G A for chords
+                             {_C4, _Ds4, _F4, _G4, _As4}, //c-minor pentatonik
+                             {_C4, _D4, _E4, _G4, _A4}, //c-major pentatonik
+                             {_A3, _B3, _D4, _E4, _A5},  // 4 Chords for Blitskrieg bob (A3-A3-D4-E4, Chorus D4-D4-A3-D4-A3 D4-D4-B3-D4-A3)
+                             {_C4, _D4, _E4, _F4, _G4}, 
+                             {_C4, _D4, _E4, _F4, _G4}, 
+                             {_C4, _D4, _E4, _F4, _G4}, 
+                             {_C4, _D4, _E4, _F4, _G4}, 
+                             {_C4, _D4, _E4, _F4, _G4}, 
+                             {_C4, _D4, _E4, _F4, _G4}, 
+                             {_C4, _D4, _E4, _F4, _G4}, 
+                             {_C4, _D4, _E4, _F4, _G4}, 
+                             {_C4, _D4, _E4, _F4, _G4}, 
+                             {_C4, _D4, _E4, _F4, _G4}, 
+                             {_C4, _D4, _E4, _F4, _G4}, 
+                             {_C4, _D4, _E4, _F4, _G4}, 
+};
+
+
 int presetModes[presetCount][5] = {{0,0,0,0,0},
                                    {0,0,0,0,0},
                                    {0,0,0,0,0},
                                    {1,1,1,1,0}, //chord-preset containing some chords
-                                  //  {0,0,0,0,0},
-                                  //  {0,0,0,0,0},
-                                  //  {0,0,0,0,0},
-                                  //  {0,0,0,0,0},
-                                  //  {0,0,0,0,0},
-                                  //  {0,0,0,0,0},
-                                  //  {0,0,0,0,0},
-                                  //  {0,0,0,0,0},
-                                  //  {0,0,0,0,0},
-                                  //  {0,0,0,0,0},
-                                  //  {0,0,0,0,0},
-                                  //  {0,0,0,0,0}
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0},
+                                   {0,0,0,0,0}
 };
-
-int getHexNote(String strNote){
-  //turns a string note ("C4", "G#4") to a hex note (0x3C, 44)
-  // 0x00 = C1
-  bool sharp = strNote.length() == 3;
-  String letter = "";
-  int number = 0;
-  if(sharp){
-    letter = strNote.substring(0,2);
-    number = 12 * strNote.substring(2,3).toInt();
-  } else{
-    letter = strNote.substring(0,1);
-    number = 12 * strNote.substring(1,2).toInt();
-  }
-  int noteNumber = 0;
-  if(letter == "C#"){noteNumber = 1;}
-  else if(letter == "D"){noteNumber = 2;}
-  else if(letter == "D#"){noteNumber = 3;}
-  else if(letter == "E"){noteNumber = 4;}
-  else if(letter == "F"){noteNumber = 5;}
-  else if(letter == "F#"){noteNumber = 6;}
-  else if(letter == "G"){noteNumber = 7;}
-  else if(letter == "G#"){noteNumber = 8;}
-  else if(letter == "A"){noteNumber = 9;}
-  else if(letter == "A#"){noteNumber = 10;}
-  else if(letter == "B"){noteNumber = 11;}
-  noteNumber += number;
-  return noteNumber;
-}
 
 int currPreset = 0;
 int lastPreset = 1;
@@ -434,8 +444,6 @@ int tremoloMode = 0; //counter for current bend mode (0..bendModes)
 int ledCounter = 0; //used to blink the leds
 int lastMillis = 0; //used to calculate delta t
 
-int midiChannel = 0x00; //stores the midichannel 0-15, 0 = all channels
-
 // RollingAverage slideVal(5);
 
 int stateTremolo = 0; //amount of tremolo pressed, 1023 when released, 0 when pressed down
@@ -444,12 +452,11 @@ uint32_t stateSlide = 0;
 int lastStateTremolo = 0;
 int lastStateSlide = 0;
 
-bool resetEEPROM = false;
+bool resetEEPROM = true;
 
 MidiWriter midi;
 Note notes[5];
-
-Note presetList[16][5];
+Preset preset;
 
 // void readEEPROM(){
 //   ConfigData cfg;
@@ -463,19 +470,9 @@ Note presetList[16][5];
 // }
 
 void setup() {
-  // Serial.begin(9600);
-  // if(resetEEPROM){
-  //   ConfigData newcfg = ConfigData();
-  //   newcfg.midiChannel = 0;
-  //   for(int i=0; i<16; i++){
-  //     for(int j=0; j<5; j++){
-  //       newcfg.presets[i][j] = getHexNote(presets[i][j]);
-  //       newcfg.presetModes[i][j] = presetModes[i][j];
-  //     }
-  //   }
-  //   EEPROM.put(0, newcfg);
-  // }
-  // readEEPROM();
+  if(resetEEPROM){
+
+  }
 
   // Init midi
   midi = MidiWriter();
@@ -485,7 +482,7 @@ void setup() {
   //Init Note Buttons
   for(int i = 0; i < 5; i++){
     btn_notes[i] = Button(pinNotes[i]);
-    notes[i] = Note(midi, getHexNote(presets[0][i]), presetModes[0][i], midiChannel);
+    notes[i] = Note(midi, presets[0][i], presetModes[0][i]);
   }
   //Other buttons are Initialized on declaration
 }
@@ -519,8 +516,8 @@ void loop() {
       // tuning/ shift pressed - change mode (single note, major chord, minor chord ..) for all active notes
       for (int i=0; i<5; i++){
         if (btn_notes[i].state){
-          notes[i].changeMode(true);
-          notes[i].play(true);
+          notes[i].changeMode(midi, true);
+          notes[i].play(midi, true);
         }
       }
     } else {
@@ -532,7 +529,8 @@ void loop() {
   if(btn_up.pressed || btn_down.pressed){
     if(btn_dmid.state){
       //currently editing Midi Channel
-      ChangeMidiChannel(btn_up.state);
+      midi.changeMidiChannel(btn_up.state);
+      leds.setValue(midi.channel);
     } else {
       if(btn_start.state){
         //Tune Notes up/down
@@ -556,9 +554,9 @@ void loop() {
       }
       if(hammeron){
         for(int j=0; j<5; j++){
-          notes[j].play(false);
+          notes[j].play(midi, false);
         }
-        notes[i].play(true);
+        notes[i].play(midi, true);
       }
     }
   }
@@ -575,10 +573,10 @@ void loop() {
       }
       if(pulloff >= 0){
         for(int j = 0; j<5; j++){
-          notes[j].play(j==pulloff);
+          notes[j].play(midi, j==pulloff);
         }
       }
-      notes[i].play(false);
+      notes[i].play(midi, false);
 
       UpdateTremolo();
     }
@@ -620,7 +618,7 @@ void loop() {
       leds.setValue(15);
     } else {
       leds.setBrightness(1);
-      leds.setValue(midiChannel);
+      leds.setValue(midi.channel);
     }
   }
 
@@ -726,7 +724,7 @@ void PlayNotes(){
   //Plays the notes of the currently pressed note buttons
   for(int i = 0; i < 5; i++){
     if(btn_notes[i].state){
-      notes[i].play(true);
+      notes[i].play(midi, true);
       UpdateTremolo();
     }
   }
@@ -742,29 +740,17 @@ void TuneNotes(bool up){
   for(int i = 0; i < 5; i++){
     if(btn_notes[i].state){
       //Mute all notes
-      notes[i].play(false);
+      notes[i].play(midi, false);
       if(!range){
         notes[i].tune(up); //increment or decrement
       }
       //Play tuned notes
-      notes[i].play(true);
+      notes[i].play(midi, true);
     }
   }
 }
 
-void ChangeMidiChannel(bool up){
-  //Increments or Decrements the midiChannel with overroll on 0..16
-  midiChannel += up?0x01:-0x01;
-  if(midiChannel > 0x0F){
-    midiChannel -= 0x10;
-  } else if(midiChannel <0x00){
-    midiChannel += 0x10;
-  }
-  for(int i = 0; i < 5; i++){
-    notes[i].setChannel(midiChannel);
-  }
-  leds.setValue(midiChannel);
-}
+
 
 void ChangeTremoloMode(bool up){
   //change tremoloMode
@@ -796,7 +782,7 @@ void ChangePreset(bool up){
   //reset midi notes
   for(int i = 0; i < 5; i++){
     //mute all notes
-    notes[i].play(false);
+    notes[i].play(midi, false);
   }
   //decrement currPreset
   lastPreset = currPreset;
@@ -807,7 +793,7 @@ void ChangePreset(bool up){
     currPreset -= presetCount;
   }
   for(int i = 0; i < 5; i++){
-    notes[i].set(midi, getHexNote(presets[currPreset][i]), presetModes[currPreset][i], midiChannel);
+    notes[i].set(midi, presets[currPreset][i], presetModes[currPreset][i]);
   }
   //use leds to display currently selected preset
   leds.setValue(currPreset);
@@ -826,15 +812,15 @@ void UpdateTremolo(){
     }
     switch(tremoloMode){
     case 0:  // Pitch Down
-      midi.pitchBend(tremoloRange * (-(tremoloValue * 8)/12), midiChannel);
+      midi.pitchBend(tremoloRange * (-(tremoloValue * 8)/12));
       break;
     case 1:  //Pitch Up
-      midi.pitchBend(tremoloRange * ((tremoloValue * 8)/12), midiChannel);
+      midi.pitchBend(tremoloRange * ((tremoloValue * 8)/12));
       break;
     case 2:  // Pressure
       for (int i=0; i<5; i++){
         if(btn_notes[i].state){
-          midi.monoPressure(notes[i].getRoot(), ((tremoloRange * tremoloValue/8)/12), midiChannel);
+          midi.monoPressure(notes[i].getRoot(), ((tremoloRange * tremoloValue/8)/12));
         }
       }
       break;
