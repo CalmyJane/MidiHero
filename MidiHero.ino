@@ -236,6 +236,7 @@ class LedBar{
     int timeout = 2000; //ms after which the LEDs will blink inverted
     int timeoutBlink = 100; //blink duration after timeout
     int timeoutCounter = 0; //counts time until timeout
+    int preBlinkBrightness = 0;
     int16_t periods[3] = {100, 10, 100};
     int16_t dutys[3] = {100, 1, 10};
 
@@ -254,7 +255,6 @@ class LedBar{
       for(int i=0; i<4; i++){
         pinMode(ledPins[i], OUTPUT);
       }
-      setBrightness(0);
     }
 
     void update(){
@@ -267,20 +267,25 @@ class LedBar{
       //   timeoutCounter = 0;
       // }
       if(blinkCounter > 0){
-        blinkCounter -= deltat;        
+        //wait for blink to finish
+        blinkCounter -= deltat;  
+        if(blinkCounter <= 0){
+          //set brigthness back to normal
+          setBrightness(preBlinkBrightness);
+        }      
       } else {
         ShowBinary(numericValue);
-      }
-      pwm_period = periods[brightness];
-      pwm_duty = dutys[brightness];
-      pwm_count += deltat;
-      if(pwm_count < pwm_duty){
-        //show what was displayed before
-      } else if(pwm_count < pwm_period){
-        setAll(false);
-      } else {
-        //period time has passed
-        pwm_count = 0;
+        pwm_period = periods[brightness];
+        pwm_duty = dutys[brightness];
+        pwm_count += deltat;
+        if(pwm_count < pwm_duty){
+          //show what was displayed before
+        } else if(pwm_count < pwm_period){
+          setAll(false);
+        } else {
+          //period time has passed
+          pwm_count = 0;
+        }
       }
     }
 
@@ -315,7 +320,10 @@ class LedBar{
 
     void blink(int duration){
       //blinks duration in ms all LEDs
+      preBlinkBrightness = brightness;
       blinkCounter = duration;
+      pwm_count = 0;
+      setBrightness(0);
       setAll(true);
     }
 
@@ -498,7 +506,7 @@ LedBar leds(pinLeds);
 int presetTremolos[presetCount] = {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,}; //tremolo values for 16 presets
 int presetTremRanges[presetCount] = {2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,}; //tremolo values for 16 presets
 
-int currPreset = 0;
+int currPreset = 1;
 
 // RollingAverage slideVal(5);
 
@@ -533,11 +541,12 @@ void setup() {
     //Read presets from EEPROM
     presets[i] = cfg.readPreset(i);
   }
-  preset = presets[0];
+  preset = presets[currPreset];
 
   //Init LEDs
   leds.setValue(currPreset);
-  leds.setBrightness(0);
+  leds.setBrightness(1);
+  leds.blink(2000);
   //Init Note Buttons
   for(int i = 0; i < 5; i++){
     btn_notes[i] = Button(pinNotes[i]);
@@ -680,16 +689,10 @@ void loop() {
   }
 
   leds.setValue(currPreset);
-  leds.setBrightness(0);
+  leds.setBrightness(1);
   if(btn_dmid.state){
-
-    if(btn_start.state && anyNote()){
-      leds.setBrightness(2);
-      leds.setValue(15);
-    } else {
-      leds.setBrightness(1);
-      leds.setValue(midi.channel);
-    }
+    leds.setBrightness(2);
+    leds.setValue(midi.channel);
   }
 
   if(btn_dmid.released){
