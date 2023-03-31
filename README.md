@@ -1,4 +1,6 @@
 # 🎸 MidiHero
+![Midi Hero epic AI title picture.](pictures/MidiHeroTitle.png)
+
 Transform your GuitarHero controller into a rockin' 5-pin MIDI controller for synths, man!
 Btw, this readme was written by chatGPT in a "cool and authentic musician-to-musician-style" - enjoy!
 
@@ -6,12 +8,9 @@ Btw, this readme was written by chatGPT in a "cool and authentic musician-to-mus
 This groovy repo provides the Arduino code and docs you need to turn a 5-button, PS3 GuitarHero controller into a rad MIDI controller. The modded axe sends MIDI notes through a 5-pin MIDI output, making it jam with any standard synth.
 
 ## 🎸 Guitar Components
-![Overview of the Midi Hero Guitar and it's Controls.](pictures/MidiHeroTitle.png)
-
+![Overview of the Midi Hero Guitar and it's Controls.](pictures/MidiHeroComponents.png)
 
 ## 🤘 Usage Instructions
-
-![Overview of the Midi Hero Guitar and it's Controls.](pictures/MidiHeroComponents.png)
 
 ### Playing Notes
 To shred a note, press and hold one or more `note` buttons and hit that up/down `trigger`. The note will sustain as long as you hold the `note` button, just like a real guitar, bro! Strum the `trigger` in both directions to play some wicked fast licks.
