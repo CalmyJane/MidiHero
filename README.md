@@ -141,3 +141,6 @@ https://docs.arduino.cc/built-in-examples/communication/Midi
 This is the circuit used for all buttons inside the guitar. Be aware, that the buttons in the controller do have a bit more resistance while on than usual buttons (up to 300 Ohms), so make sure you use 10k resistors to GND, smaller resistors may cause glitches.
 https://docs.arduino.cc/built-in-examples/digital/Button
 
+### Arduino Midi In- and Output
+Same circuit as in the other tutorial, but also contains part for recieving midi which is a bit more complicated, but also doable. Also you don't necessarily need the Optocoupler circuit and can directly connect the data lines to your Rx pin, but decoupling is recommended of course.
+https://www.instructables.com/Send-and-Receive-MIDI-with-Arduino/
