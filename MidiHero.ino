@@ -233,6 +233,9 @@ class LedBar{
     int brightness = 0;
     int brightCounter = 0;
     int darkCounter = 0;
+    int timeout = 2000; //ms after which the LEDs will blink inverted
+    int timeoutBlink = 100; //blink duration after timeout
+    int timeoutCounter = 0; //counts time until timeout
     int16_t periods[3] = {100, 10, 100};
     int16_t dutys[3] = {100, 1, 10};
 
@@ -258,7 +261,11 @@ class LedBar{
       int16_t mlls = millis();
       int16_t deltat = mlls - lastMillis;
       lastMillis = mlls;
-      //call on every cycle
+      // timeoutCounter += mlls;
+      // if(timeoutCounter >= timeout){
+      //   blink(timeoutBlink);
+      //   timeoutCounter = 0;
+      // }
       if(blinkCounter > 0){
         blinkCounter -= deltat;        
       } else {
@@ -293,7 +300,6 @@ class LedBar{
     }
 
     void setLed(int led, bool value){
-      // digitalWrite(pins[led], !(!value != inverted));
       digitalWrite(pins[led], !value != inverted);
     }
 
@@ -691,12 +697,14 @@ void loop() {
       // WRITING TO EEPROM
       // writing midi channel to permanent memory if changed
       cfg.writeMidiCh(midi.channel);
+      leds.blink(500);
     }
     if(anyNote()){
       //if any note button is pressed and menu is released, the preset is saved to the binary-selected slot
       int sel = getNoteBinaryInput();
       cfg.updatePreset(sel, preset);
       presets[sel] = preset;
+      leds.blink(500);
     }
   }
 
