@@ -31,7 +31,8 @@ Tremolo modes include:
 You can change mode for your current preset by pressing `Start`.
 
 ### Guitar Tuning
-Wanna tweak your presets? No problem, dude! Select a preset, then press and hold the `notes` you want to change. Adjust the pitch with `Shift + trigger up/down` for a semitone up or down. Transpose an entire preset by holding all notes and pressing `Shift + trigger up/down`. Just remember, custom presets won't be saved when you restart the guitar - they'll go back to default. But hey, it's a great way to reset if things get to funky!
+Wanna tweak your presets? No problem, dude! Select a preset, then press and hold the `notes` you want to change. Adjust the pitch with `Shift + trigger up/down` for a semitone up or down. Transpose an entire preset by holding all notes and pressing `Shift + trigger up/down`. Just remember, custom presets won't be saved when you restart the guitar - they'll go back to default if not saved. But hey, it's a great way to reset if things get to funky!
+You can also hold the up/down trigger while tuning to jump a full octave.
 
 ### Note Modes
 Each note can have different modes:
@@ -45,7 +46,7 @@ Hold the notes you want to change, hold Select and press Start to cycle through 
 By default, your guitar sends notes on MIDI channel 1. We recommend setting your synth to accept all MIDI notes - check the settings! But if you need a specific channel, press the `D-pad` down and use the `up/down trigger` to change the channel. The active channel is shown in binary with flashing LEDs, from Channel 1 (1000) to Channel 15 (1111), and Channel 16 (0000). The channel is stored when device is powered off.
 
 ### Saving Presets
-You can save Tremolo mode and range, as well as selected notes and note modes to one of the 16 preset slots. Press d-pad middle button, hold the first 4 buttons (green, red, yellow, blue) to input a binary number, release the d-pad middle button to save. Be careful there is immediate overwrite. Slots 1-4 are blocked and cannot be overwritten.
+You can save Tremolo mode and range, as well as selected notes and note modes to one of the 16 preset slots. Hold the first 4 buttons (green, red, yellow, blue) to input a binary number, then hold the d-pad middle button to save. LEDs will blink when saved and go back to displaying the preset. Slots 1-4 are blocked and cannot be overwritten.
 ## Schematics
 
 ![Schematic of the arduino and its IOs ](pictures/Schematic.png)

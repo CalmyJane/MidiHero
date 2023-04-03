@@ -131,9 +131,9 @@ class Note{
       playing = on; //store current state
     }
 
-    void tune(bool up){
+    void tune(bool up, int semitones){
       // tune 1 semitone up/down
-      root += up?1:-1;
+      root += up?semitones:-semitones;
     }
 
     int getRoot(){
@@ -517,8 +517,14 @@ int lastStateTremolo = 0;
 int lastStateSlide = 0;
 int previousMidiCh = 0;
 
+int saveTimeout = 2000;
+int octaveTimeout = 600;
+int timeCounter = 0;
+
+int lastMlls = 0;
+int deltat = 0;
+
 MidiWriter midi;
-Note notes[5];
 Preset preset;
 Preset presets[16];
 Config cfg;
@@ -555,7 +561,9 @@ void setup() {
 }
 
 void loop() {
-      
+  int mls = millis();
+  deltat = mls - lastMlls;
+  lastMlls = mls;
   lastStateTremolo = stateTremolo;
   stateTremolo = analogRead(pinTremolo);
 
@@ -578,7 +586,6 @@ void loop() {
   readSlideBar();
 
   if(btn_select.pressed){
- 
     // hero power button pressed
     if(btn_start.state){
       // tuning/ start pressed - change mode (single note, major chord, minor chord ..) for all active notes
@@ -595,6 +602,7 @@ void loop() {
     }
   }
 
+  //Trigger pressed
   if(btn_up.pressed || btn_down.pressed){
     if(btn_dmid.state){
       //currently editing Midi Channel
@@ -603,11 +611,29 @@ void loop() {
     } else {
       if(btn_start.state){
         //Tune Notes up/down
-        TuneNotes(btn_up.state);
+        TuneNotes(btn_up.state, 1);
+        timeCounter = 0;
       } else {
         //Normal strum, play notes
         PlayNotes();            
       }
+    }
+  }
+
+  //Trigger hold
+  if(btn_up.state || btn_down.state){
+    if(btn_start.state && timeCounter < octaveTimeout){
+      timeCounter += deltat;
+      if(timeCounter >= octaveTimeout){
+        TuneNotes(btn_up.state, 11);
+      }
+    }
+  }
+
+  //Start Button released
+  if(btn_start.released){
+    for(int i=0; i<5; i++){
+      preset.notes[i].play(midi, false);
     }
   }
 
@@ -686,13 +712,35 @@ void loop() {
 
   if(btn_dmid.pressed){
     previousMidiCh = midi.channel;
+    if(anyNote()){
+      //Start saving preset, start timeout
+      timeCounter = 0;
+      leds.setValue(15);
+      leds.setBrightness(3);
+    } else {
+      //Change midi channel
+      leds.setBrightness(2);  
+      timeCounter = saveTimeout; //to prevent from first pressing menu and then pressing note buttons, notes should be pressed first
+    }
+
   }
 
   leds.setValue(currPreset);
   leds.setBrightness(1);
   if(btn_dmid.state){
-    leds.setBrightness(2);
-    leds.setValue(midi.channel);
+    if(anyNote() && timeCounter < saveTimeout){
+      leds.setValue(15);
+      timeCounter += deltat;
+      if(timeCounter >= saveTimeout){
+        //timeout passed, save preset
+        int sel = getNoteBinaryInput();
+        cfg.updatePreset(sel, preset);
+        presets[sel] = preset;
+        leds.blink(500);
+      }
+    } else if (!anyNote()){
+      leds.setValue(midi.channel);
+    }
   }
 
   if(btn_dmid.released){
@@ -700,13 +748,6 @@ void loop() {
       // WRITING TO EEPROM
       // writing midi channel to permanent memory if changed
       cfg.writeMidiCh(midi.channel);
-      leds.blink(500);
-    }
-    if(anyNote()){
-      //if any note button is pressed and menu is released, the preset is saved to the binary-selected slot
-      int sel = getNoteBinaryInput();
-      cfg.updatePreset(sel, preset);
-      presets[sel] = preset;
       leds.blink(500);
     }
   }
@@ -791,19 +832,19 @@ void PlayNotes(){
   }
 }
 
-void TuneNotes(bool up){
+void TuneNotes(bool up, int semitones){
   //tunes the curently pressed note buttones one semitone up/down
   bool range = false;
   for(int i = 0; i < 5; i++){
     //make sure, that no note exceeds 0x00..0x77
-    range = (((preset.notes[i].getRoot() + 1) >= 0x77) && up) || (((preset.notes[i].getRoot() - 1) < 0x00) && !up) || range;
+    range = (((preset.notes[i].getRoot() + semitones) >= 0x77) && up) || (((preset.notes[i].getRoot() - semitones) < 0x00) && !up) || range;
   }
   for(int i = 0; i < 5; i++){
-    if(btn_notes[i].state){
+    if(btn_notes[i].state || !anyNote()){
       //Mute all notes
       preset.notes[i].play(midi, false);
       if(!range){
-        preset.notes[i].tune(up); //increment or decrement
+        preset.notes[i].tune(up, semitones); //increment or decrement
       }
       //Play tuned notes
       preset.notes[i].play(midi, true);
