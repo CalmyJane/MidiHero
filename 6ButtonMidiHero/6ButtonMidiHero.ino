@@ -10,7 +10,6 @@
 //check out the readme for more information
 
 #include <EEPROM.h>
-#define buttonCount 5 //number of buttons on the guitar
 
 class MidiWriter{
   public:
@@ -24,17 +23,17 @@ class MidiWriter{
       int firstByte = cmd & 0xF0;
       if(firstByte != 0xF0){
       //if not system message, include midi channel information
-        firstByte |= (channel & 0x0F);        
+        firstByte |= (channel & 0x0F);
       }
-      // Serial.print("write: ");
-      // Serial.print(firstByte, HEX);
-      // Serial.print(" - ");
-      // Serial.print(data1, HEX);
-      // Serial.print(" - ");
-      // Serial.print(data2, HEX);
-      // Serial.print(" \n");
+      Serial.print("asdfasdfasdfsadfasdfasdfsafasdfasdfasdfasdfasfsafdasfasfdwrite: ");
+      Serial.print(firstByte, HEX);
+      Serial.print(" - ");
+      Serial.print(data1, HEX);
+      Serial.print(" - ");
+      Serial.print(data2, HEX);
+      Serial.print(" \n");
 
-      //write midi to tx pin
+      //write midi data
       Serial.write(firstByte);
       Serial.write(data1);
       Serial.write(data2);
@@ -42,17 +41,17 @@ class MidiWriter{
 
     void noteOnOff(int note, bool on){
       //0x90 = play note, 0x45 = medium velocity
-      write(0x90, note, on?0x45:0x00); 
+      write(0x90, note, on?0x45:0x00);
     }
 
-    void pitchBend(int value) {   
+    void pitchBend(int value) {
       // Value is +/- 8192
         unsigned int change = 0x2000 + value;  //  0x2000 == No Change
         unsigned char low = change & 0x7F;  // Low 7 bits
         unsigned char high = (change >> 7) & 0x7F;  // High 7 bits
         write(0xE0, low, high);
     }
-    
+
     void monoPressure(int noteValue, int value){
       //sends pressure message for monophonic aftertouch. there's also a message for polyphonic aftertoucht
       //value in 0..127
@@ -100,8 +99,6 @@ class Note{
     void play(MidiWriter midi, bool on){
       //send 0x90 command - play note - with 0x00 (note off) or 0x45 (not on) velocity
       if(playing || (!playing && on)){
-        
-      Serial.print(mode);
         switch(mode){
           case 0:
             //single note
@@ -173,7 +170,7 @@ class RollingAverage {
       bufferSum += amount;
       bufferSum -= buffer[bufferIndex];
       buffer[bufferIndex] = amount;
-  
+
       bufferIndex = ((bufferIndex + 1) % bufferSize + bufferSize) % bufferSize; //positive modulo
 
       if (bufferCount < bufferSize) {
@@ -203,27 +200,21 @@ class Button{
     bool pressed = false;
     bool released = false;
     int pin = 0;
-    bool analogPin = false;
 
     Button(){
-      
+
     }
 
     Button(int pinNumber){
       //Initialize button input
       pin = pinNumber;
-      analogPin = (pinNumber >= A0 && pinNumber <= A7); //is analog pin?
       pinMode(pinNumber, INPUT);
     }
 
     void update(){
       //call periodically
       lastState = state;
-      if(analogPin){
-        state = analogRead(pin) > 400;
-      } else {
-        state = digitalRead(pin);
-      }
+      state = digitalRead(pin);
       pressed = !lastState && state; //was pressed in this iteration
       released = lastState && !state; //was released in this iteration
     }
@@ -243,7 +234,7 @@ class Led{
     bool state;
   public:
     Led(){
-      
+
     }
 
     Led(int pin){
@@ -283,7 +274,7 @@ class Led{
               blinkCount--;
             }
             blinkCounter = blinkRate;
-          }          
+          }
         }
       } else{
         if(blinkCount != 0){
@@ -321,7 +312,7 @@ class LedBar{
   private:
     int* pins;
     int blinkCounter = 0;
-    int numericValue = 0; 
+    int numericValue = 0;
     int lastMillis = 0;
     int brightness = 0;
     int brightCounter = 0;
@@ -361,11 +352,11 @@ class LedBar{
       // }
       if(blinkCounter > 0){
         //wait for blink to finish
-        blinkCounter -= deltat;  
+        blinkCounter -= deltat;
         if(blinkCounter <= 0){
           //set brigthness back to normal
           setBrightness(preBlinkBrightness);
-        }      
+        }
       } else {
         ShowBinary(numericValue);
         pwm_period = periods[brightness];
@@ -439,7 +430,7 @@ class Preset{
       tremoloMode = tremMode;
       tremoloRange = tremRange;
       tremoloModeCount = 3;
-      for(int i=0; i<5; i++){
+      for(int i=0; i<6; i++){
         notes[i] = Note(midi, noteValues[i], noteModes[i]);
       }
     }
@@ -454,7 +445,7 @@ class Preset{
         tremoloMode = 0;
       }
     }
-    
+
     bool ChangeTremoloRange(bool up){
       //change tremoloRange
       tremoloRange += up?1:-1;
@@ -474,38 +465,30 @@ class Config{
   private:
     int midiChannelAdd = 0;
     int firstPreset = 1;
-  
+
   public:
     Config(){
-      // Serial.begin(9600);
+      Serial.begin(9600);
     };
-    
+
     int8_t readMidiCh(){
       int8_t val = 0;
-      Serial.begin(9600);
       EEPROM.get(midiChannelAdd, val);
-      Serial.begin(31250);
       return val;
     }
 
     void writeMidiCh(int8_t channel){
-      Serial.begin(9600);
       EEPROM.put(midiChannelAdd, channel);
-      Serial.begin(31250);
     }
 
     Preset readPreset(int index){
       Preset prst;
-      Serial.begin(9600);
       EEPROM.get(firstPreset + index * sizeof(Preset), prst);
-      Serial.begin(31250);
       return prst;
     }
 
     void writePreset(int index, Preset preset){
-      Serial.begin(9600);
       EEPROM.put(firstPreset + index * sizeof(Preset), preset);
-      Serial.begin(31250);
     }
 
     void writeAllPresets(Preset presets[16]){
@@ -535,72 +518,6 @@ enum NoteNames{
   _C7, _Cs7, _D7, _Ds7, _E7, _F7, _Fs7, _G7, _Gs7, _A7, _As7, _B7
 };
 
-class Poti{
-  private:
-    int lastValue = 0;
-  public:
-    int pin = A0;
-    int moveTolerance = 1; //turn up to reduce cpu load, keep on 1 to read poti as much as possible
-    bool moved = false; //indicates if poti was moved this iteration by more than moveTolerance
-    uint16_t value = 0;
-    bool inverted = false;
-
-    Poti(){}
-
-    Poti(int _pin){
-      pin = _pin;
-      pinMode(pin, INPUT);
-    }
-
-    void update(){
-      value = analogRead(pin);
-      if(inverted){
-        value = 1023 - value;
-      }
-      moved = abs(value-lastValue) >= moveTolerance; //detect movement greater than moveTolerance
-    }
-};
-
-class Tremolo : public Poti {
-  public:
-    Tremolo(){}
-    Tremolo(int pin) : Poti(pin) {
-    }
-    
-    void reset(Preset preset, MidiWriter midi, Button btn_notes[buttonCount]){
-      value = 0;
-      sendMidi(preset, midi, btn_notes);
-    }
-
-    void update(Preset preset, MidiWriter midi, Button btn_notes[buttonCount]){
-      Poti::update();
-      if(Poti::moved){
-        sendMidi(preset, midi, btn_notes);
-      }
-    }
-
-    void sendMidi(Preset preset, MidiWriter midi, Button btn_notes[buttonCount]){
-      // Serial.print("\n");
-      // Serial.print(value);
-      // Serial.print("\n");
-      switch(preset.tremoloMode){
-        case 0:  // Pitch Down
-          midi.pitchBend(preset.tremoloRange * (-(value * 8)/12));
-          break;
-        case 1:  //Pitch Up
-          midi.pitchBend(preset.tremoloRange * ((value * 8)/12));
-          break;
-        case 2:  // Pressure
-          for (int i=0; i<5; i++){
-            if(btn_notes[i].state){
-              midi.monoPressure(preset.notes[i].getRoot(), ((preset.tremoloRange * value/8)/12));
-            }
-          }
-          break;
-      }
-    }
-};
-
 // Set this to true to write the default values (from the array constants) to EEPROM, only do this once, then turn off and re-write program to arduino
 bool resetEEPROM = false;
 
@@ -608,79 +525,58 @@ const int SHORT_BLINK = 50;
 const int LONG_BLINK = 120;
 const int VERY_LONG_BLINK = 500;
 
-//PINOUTS FOR FIRST 5 BUTTON CONTROLLER
-// // Adjust Pinouts here
-// int buttonCount = 6; //number of buttons on the guitar
-// const int pinNotes[5] = {6,7,8,9,10};
-// int pinLeds[4] = {2,5,4,3};
-// const int pinUp = 12;
-// const int pinDown = 11;
-// const int pinTremolo = A7;
-// const int pinSelect = A0;
-// const int pinDpadUp = A1;
-// const int pinDpadDown = A2;
-// const int pinDpadLeft = A3;
-// const int pinDpadRight = A4;
-// const int pinStart = 13;
-// const int pinDpadMid = A5;
-// const int pinSlide = A6;
-
 // Adjust Pinouts here
-const int pinNotes[buttonCount] = {A1,A2,A3,A4,A5};
-int pinLeds[4] = {6,9,10,11};
+int buttonCount = 6; //number of buttons on the guitar
+const int pinNotes[6] = {9,10,11,6,7,8};
+int pinLeds[4] = {2,5,4,3};
 const int pinUp = 12;
 const int pinDown = 13;
 const int pinTremolo = A7;
-const int pinSelect = 2;
-const int pinDpadUp = 4;
-const int pinDpadDown = 5;
-const int pinDpadLeft = 7;
-const int pinDpadRight = 8;
-const int pinStart = A6;
-const int pinDpadMid = 3;
-const int pinSlide = A0;
+const int pinSelect = A0;
+const int pinDpadUp = A3;
+const int pinDpadDown = A4;
+const int pinDpadLeft = A5;
+const int pinDpadRight = A6;
+const int pinStart = A2;
+const int pinDpadMid = A1;
 
 const int presetCount = 16;
 //4 presets of 6 notes each. May be edited later by user
-NoteNames presetNotes[presetCount][buttonCount] = {{_C4, _F4, _G4, _A4, _C5}, // C F G A for chords
-                             {_C4, _Ds4, _F4, _G4, _As4}, //c-minor pentatonik
-                             {_C4, _D4, _E4, _G4, _A4}, //c-major pentatonik
-                             {_A3, _B3, _D4, _E4, _A5},  // 4 Chords for Blitskrieg bob (A3-A3-D4-E4, Chorus D4-D4-A3-D4-A3 D4-D4-B3-D4-A3)
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
+NoteNames presetNotes[presetCount][6] = {{_C4, _F4, _G4, _A4, _C5, _F5}, // C F G A for chords
+                             {_C4, _Ds4, _F4, _G4, _As4, _C5}, //c-minor pentatonik
+                             {_C4, _D4, _E4, _G4, _A4, _C5}, //c-major pentatonik
+                             {_A3, _B3, _D4, _E4, _A5, _D5},  // 4 Chords for Blitskrieg bob (A3-A3-D4-E4, Chorus D4-D4-A3-D4-A3 D4-D4-B3-D4-A3)
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
+                             {_C4, _D4, _E4, _F4, _G4, _C5},
 };
 
-int presetModes[presetCount][buttonCount] = {{0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {1,1,1,1,0}, //chord-preset containing some chords
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0},
-                                   {0,0,0,0,0}
+int presetModes[presetCount][6] = {{0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {1,1,1,1,0,0}, //chord-preset containing some chords
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0},
+                                   {0,0,0,0,0,0}
 };
-
-int presetTremolos[presetCount] = {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,}; //tremolo values for 16 presets
-int presetTremRanges[presetCount] = {2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,}; //tremolo values for 16 presets
-
 
 Button btn_up(pinUp);
 Button btn_down(pinDown);
@@ -691,17 +587,26 @@ Button btn_ddown(pinDpadDown);
 Button btn_dleft(pinDpadLeft);
 Button btn_dright(pinDpadRight);
 Button btn_dmid(pinDpadMid);
-Button btn_notes[5];
-
-Tremolo tremolo;
+Button btn_notes[6];
 
 LedBar leds(pinLeds);
 
+int presetTremolos[presetCount] = {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,}; //tremolo values for 16 presets
+int presetTremRanges[presetCount] = {2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,}; //tremolo values for 16 presets
+
 int currPreset = 1;
+
+// RollingAverage slideVal(5);
+
+int stateTremolo = 0; //amount of tremolo pressed, 1023 when released, 0 when pressed down
+
+int lastStateTremolo = 0;
 int previousMidiCh = 0;
+
 int saveTimeout = 2000;
 int octaveTimeout = 600;
 int timeCounter = 0;
+
 int lastMlls = 0;
 int deltat = 0;
 
@@ -712,7 +617,6 @@ Config cfg;
 
 void setup() {
   // Init midi
-  Serial.begin(31250);
   midi = MidiWriter();
   if(resetEEPROM){
     cfg.writeMidiCh(0);
@@ -736,11 +640,9 @@ void setup() {
   leds.setBrightness(1);
   leds.blink(2000, 50, 1);
   //Init Note Buttons
-  for(int i = 0; i < buttonCount; i++){
+  for(int i = 0; i < 6; i++){
     btn_notes[i] = Button(pinNotes[i]);
   }
-  tremolo = Tremolo(pinTremolo);
-  tremolo.inverted = false;
   //Other buttons are Initialized on declaration
 }
 
@@ -748,6 +650,8 @@ void loop() {
   int mls = millis();
   deltat = mls - lastMlls;
   lastMlls = mls;
+  lastStateTremolo = stateTremolo;
+  stateTremolo = analogRead(pinTremolo);
 
   //read buttons and update current states
   btn_up.update();
@@ -760,23 +664,18 @@ void loop() {
   btn_dright.update();
   btn_dmid.update();
 
-  for(int i = 0; i<buttonCount; i++){
-    btn_notes[i].update(); 
+  for(int i = 0; i<6; i++){
+    btn_notes[i].update();
   }
-
-  //read tremolo poti and send midi message on change
-  tremolo.update(preset, midi, btn_notes);
-  //read slide bar value
-  readSlideBar();
 
   if(btn_select.pressed){
     // hero power button pressed
     if(btn_start.state){
       // tuning/ start pressed - change mode (single note, major chord, minor chord ..) for all active notes
-      for (int i=0; i<buttonCount; i++){
+      for (int i=0; i<6; i++){
         if (btn_notes[i].state){
           preset.notes[i].changeMode(midi, true);
-          if(tremolo.value > 500){
+          if(stateTremolo > 500){
             preset.notes[i].play(midi, true);
           }
           leds.blink(LONG_BLINK, 50, 1);
@@ -784,8 +683,8 @@ void loop() {
       }
     } else {
       //change tremolo mode
-      tremolo.reset(preset, midi, btn_notes);
-      preset.ChangeTremoloMode(true); 
+      ResetTremolo();
+      preset.ChangeTremoloMode(true);
       leds.blink(SHORT_BLINK, 50, 1);
     }
   }
@@ -804,7 +703,7 @@ void loop() {
         leds.blink(SHORT_BLINK, 50, 1);
       } else {
         //Normal strum, play notes
-        PlayNotes();          
+        PlayNotes();
       }
     }
   }
@@ -822,23 +721,23 @@ void loop() {
 
   //Start Button released
   if(btn_start.released){
-    for(int i=0; i<buttonCount; i++){
+    for(int i=0; i<6; i++){
       preset.notes[i].play(midi, false);
     }
   }
 
   //check for Hammeron
-  for(int i=0; i<buttonCount; i++){
+  for(int i=0; i<6; i++){
     if(btn_notes[i].pressed){
       bool hammeron = false;
       for(int j=0; j<i; j++){
         hammeron = hammeron || preset.notes[j].playing;
       }
-      for(int j=0; j<buttonCount-i; j++){
-        hammeron = hammeron && !preset.notes[buttonCount-1-j].playing;
+      for(int j=0; j<6-i; j++){
+        hammeron = hammeron && !preset.notes[4-j].playing;
       }
       if(hammeron){
-        for(int j=0; j<buttonCount; j++){
+        for(int j=0; j<6; j++){
           preset.notes[j].play(midi, false);
         }
         preset.notes[i].play(midi, true);
@@ -847,7 +746,7 @@ void loop() {
   }
 
   //reset notes when note button is released
-  for(int i = 0; i < buttonCount; i++){
+  for(int i = 0; i < 6; i++){
     if(btn_notes[i].released){
       //Mute every released note
       int pulloff = -1;
@@ -858,15 +757,22 @@ void loop() {
       }
       preset.notes[i].play(midi, false);
       if(pulloff >= 0){
-        for(int j = 0; j<buttonCount; j++){
+        for(int j = 0; j<6; j++){
           preset.notes[j].play(midi, j==pulloff);
         }
       }
+
+      UpdateTremolo();
     }
   }
 
+  //read tremolo change
+  if(abs(lastStateTremolo - stateTremolo) > 3){
+      UpdateTremolo();
+  }
+
   //read D-Pad LEFT
-  if(btn_dleft.pressed){  
+  if(btn_dleft.pressed){
     ChangePreset(true);
   }
 
@@ -881,7 +787,7 @@ void loop() {
     if(preset.ChangeTremoloRange(true)){
       leds.blink(SHORT_BLINK, 50, 1);
     };
-    tremolo.reset(preset, midi, btn_notes);
+    UpdateTremolo();
   }
 
   //read D-Pad DOWN
@@ -889,11 +795,10 @@ void loop() {
     //cross down pressed
     if(preset.ChangeTremoloRange(false)){
       leds.blink(SHORT_BLINK, 50, 1);
-    }; 
-    tremolo.reset(preset, midi, btn_notes);
+    };
+    UpdateTremolo();
   }
 
-  //read middle button of dpad pressed
   if(btn_dmid.pressed){
     previousMidiCh = midi.channel;
     if(anyNote()){
@@ -903,13 +808,12 @@ void loop() {
       leds.setBrightness(3);
     } else {
       //Change midi channel
-      leds.setBrightness(2);  
+      leds.setBrightness(2);
       timeCounter = saveTimeout; //to prevent from first pressing menu and then pressing note buttons, notes should be pressed first
     }
 
   }
 
-  //read middle button hold
   leds.setValue(currPreset);
   leds.setBrightness(1);
   if(btn_dmid.state){
@@ -939,58 +843,33 @@ void loop() {
 
   leds.update();
 
-  // // Debug Code to print all Input states
-  // Serial.print("N1: " + (String)btn_notes[0].state + 
-  //             " N2: " + (String)btn_notes[1].state + 
-  //             " N3: " + (String)btn_notes[2].state + 
-  //             " N4: " + (String)btn_notes[3].state + 
-  //             " N5: " + (String)btn_notes[4].state + 
-  //             " UP: " + (String)btn_up.state + 
-  //             " DOWN: " + (String)btn_down.state + 
-  //             " START: " + (String)btn_start.state + 
-  //             " SELECT: " + (String)btn_select.state + 
-  //             " DUP: " + (String)btn_dup.state + 
-  //             " DDOWN: " + (String)btn_ddown.state + 
-  //             " DLEFT: " + (String)btn_dleft.state + 
-  //             " DRIGHT: " + (String)btn_dright.state + 
-  //             " DMID: " + (String)btn_dmid.state + 
-  //             " TREMOLO: " + (String)stateTremolo + 
-  //             " Slide: " + (String)stateSlide + "\n"
-  //             );
+  // Debug Code to print all Input states
+  Serial.print("N1: " + (String)btn_notes[0].state +
+              " N2: " + (String)btn_notes[1].state +
+              " N3: " + (String)btn_notes[2].state +
+              " N4: " + (String)btn_notes[3].state +
+              " N5: " + (String)btn_notes[4].state +
+              " N6: " + (String)btn_notes[5].state +
+              " UP: " + (String)btn_up.state +
+              " DOWN: " + (String)btn_down.state +
+              " START: " + (String)btn_start.state +
+              " SELECT: " + (String)btn_select.state +
+              " DUP: " + (String)btn_dup.state +
+              " DDOWN: " + (String)btn_ddown.state +
+              " DLEFT: " + (String)btn_dleft.state +
+              " DRIGHT: " + (String)btn_dright.state +
+              " DMID: " + (String)btn_dmid.state +
+              " TREMOLO: " + (String)stateTremolo + "\n"
+              );
 }
 
 int strobeCounter = 0;
 bool strobeState = false;
 
-void readSlideBar(){
-  //read slide-bar TOBEDONE
-  // lastStateSlide = stateSlide;
-  // slideVal.add(analogRead(pinSlide));
-  // stateSlide = slideVal.get();
-  // int tolerance = 50;
-  // int slideNote = 0;
-  // if(abs(stateSlide - 140) <= tolerance){
-  //   slideNote = 1;
-  // } else if(abs(stateSlide - 350) <= tolerance){
-  //   slideNote = 2;
-  // } else if(abs(stateSlide - 600) <= tolerance){
-  //   slideNote = 3;
-  // } else if(abs(stateSlide - 770) <= tolerance){
-  //   slideNote = 4;
-  // } else if(abs(stateSlide - 1000) <= tolerance){
-  //   slideNote = 5;
-  // } else if(abs(stateSlide - 500) <= tolerance){
-  //   slideNote = 6;
-  // }  
-  // Serial.print("SlideVal: ");
-  // Serial.print(slideNote);
-  // Serial.print("\n");
-}
-
 bool anyNote(){
   //returns if any note button is pressed
   bool any = false;
-  for(int i=0; i<buttonCount; i++){
+  for(int i=0; i<6; i++){
     if(btn_notes[i].state){
       any = true;
     };
@@ -1005,10 +884,10 @@ int getNoteBinaryInput(){
 
 void PlayNotes(){
   //Plays the notes of the currently pressed note buttons
-  for(int i = 0; i < buttonCount; i++){
+  for(int i = 0; i < 6; i++){
     if(btn_notes[i].state){
       preset.notes[i].play(midi, true);
-      tremolo.update(preset, midi, btn_notes);
+      UpdateTremolo();
     }
   }
 }
@@ -1016,12 +895,12 @@ void PlayNotes(){
 void TuneNotes(bool up, int semitones){
   //tunes the curently pressed note buttones one semitone up/down
   bool range = false;
-  bool replay = tremolo.value > 500; //don't replay if tremolo is pressed
-  for(int i = 0; i < 5; i++){
+  bool replay = stateTremolo > 500; //don't replay if tremolo is pressed
+  for(int i = 0; i < 6; i++){
     //make sure, that no note exceeds 0x00..0x77
     range = (((preset.notes[i].getRoot() + semitones) >= 0x77) && up) || (((preset.notes[i].getRoot() - semitones) < 0x00) && !up) || range;
   }
-  for(int i = 0; i < buttonCount; i++){
+  for(int i = 0; i < 6; i++){
     if(btn_notes[i].state || !anyNote()){
       //Mute all notes
       preset.notes[i].play(midi, false);
@@ -1039,7 +918,7 @@ void TuneNotes(bool up, int semitones){
 void ChangePreset(bool up){
   //changes the Preset one number up/down with overroll at 0..4
   //reset midi notes
-  for(int i = 0; i < buttonCount; i++){
+  for(int i = 0; i < 6; i++){
     //mute all notes
     preset.notes[i].play(midi, false);
   }
@@ -1055,4 +934,31 @@ void ChangePreset(bool up){
   //use leds to display currently selected preset
   leds.setValue(currPreset);
   leds.update();
+}
+
+void ResetTremolo(){
+  stateTremolo = 1023;
+  UpdateTremolo();
+}
+
+void UpdateTremolo(){
+    int tremoloValue = 1023 - stateTremolo; //tremoloValue from 0 to 1023
+    if(tremoloValue <= 5){
+      tremoloValue = 0;
+    }
+    switch(preset.tremoloMode){
+    case 0:  // Pitch Down
+      midi.pitchBend(preset.tremoloRange * (-(tremoloValue * 8)/12));
+      break;
+    case 1:  //Pitch Up
+      midi.pitchBend(preset.tremoloRange * ((tremoloValue * 8)/12));
+      break;
+    case 2:  // Pressure
+      for (int i=0; i<6; i++){
+        if(btn_notes[i].state){
+          midi.monoPressure(preset.notes[i].getRoot(), ((preset.tremoloRange * tremoloValue/8)/12));
+        }
+      }
+      break;
+    }
 }
