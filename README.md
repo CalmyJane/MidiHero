@@ -17,8 +17,10 @@ To shred a note, press and hold one or more `note` buttons and hit that up/down 
 ### Hammer-On / Pull-Off
 While playing any note you can play a hammer-on by pressing any note closer to the body of the guitar while holding a lower note. This note will play as soon as you press the note button and does not require a trigger. You can also play a note, and release the note-button while holding down a note further away from the body. This will play the lower note without an additional trigger.
 
+You can enable/disable hammeron functionality for any preset by holding `Select` and pressing `Start`.
+
 ### Preset Selection
-Your guitar comes preloaded with 16 presets. A preset contains the currently selected notes and their modes, the current tremolo mode and tremolo range. The LEDs indicate which is selected in binary. Press `d-pad left/right` to change the currently selected preset. Changes you make to a preset will remain until you reboot the guitar, unless you save your preset to permanently keep it on the instrument.
+Your guitar comes preloaded with 16 presets. A preset contains the currently selected notes and their modes, the current tremolo mode and tremolo range and a hammeron-flag. The LEDs indicate which is selected in binary. Press `d-pad left/right` to change the currently selected preset. Changes you make to a preset will remain until you reboot the guitar, unless you save your preset to permanently keep it on the instrument.
 
 ### Tremolo Functionality
 Rock that `tremolo`! By default, it'll bend your pitch down by one semitone at full extension. You can adjust the bend range from 1 to 12 semitones! To change the range, press the `D-pad up/down`. Navigate the modes and watch for a flash of all `LEDs` to know you've made the switch. If no flash, you've hit the end of the range (1 or 12) - just navigate the other way, man!
@@ -47,6 +49,7 @@ By default, your guitar sends notes on MIDI channel 1. We recommend setting your
 
 ### Saving Presets
 You can save Tremolo mode and range, as well as selected notes and note modes to one of the 16 preset slots. Hold the first 4 buttons (green, red, yellow, blue) to input a binary number, then hold the d-pad middle button to save. LEDs will blink when saved and go back to displaying the preset. Slots 1-4 are blocked and cannot be overwritten.
+
 ## Schematics
 
 ![Schematic of the arduino and its IOs ](pictures/Schematic.png)
@@ -60,6 +63,7 @@ Inside the main frame there are 4 boards that contain several buttons. The board
 https://docs.arduino.cc/built-in-examples/digital/Button
 
 Details about the different boards inside the controller:
+See the pictures folder for images of other controllers.
 
 ### Neck Connector
 Some pins are not used in my version of the controller, maybe there are other controllers with an additional uController inside the neck, for now only the button-pins are used.

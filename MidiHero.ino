@@ -11,6 +11,7 @@
 
 #include <EEPROM.h>
 #define buttonCount 5 //number of buttons on the guitar
+#define presetCount 16
 
 class MidiWriter{
   public:
@@ -232,16 +233,25 @@ class Button{
 class Led{
   private:
     int pin;
-    uint16_t brightness = 2;
-    uint16_t brightCounter = 0;
-    uint16_t brightPeriod = 10;
-    uint16_t blinkRate = 0;
-    uint16_t blinkDuty = 0;
-    uint16_t blinkCount = 0;
-    uint16_t blinkCounter = 0;
-    uint16_t lastMlls;
+    int brightness = 2;
+    int16_t brightCounter = 0;
+    int16_t brightPeriod = 10;
+    uint32_t blinkRate = 0;
+    uint32_t blinkDuty = 0;
+    int16_t blinkBrightness = 0;
+    int16_t prevBrightness = 0;
+    int16_t blinkCount = 0;
+    int16_t blinkCounter = 0;
+    int lastMlls;
     bool state;
+    bool timerPwm = false; //if a pwm-pin is used, use the pwm feature to get better resolution
+
+    int invertBrightness(int brightness){
+      return 255 - brightness;
+    }
+
   public:
+    bool inverted = false; //Set to true, depending on how you connected the LED
     Led(){
       
     }
@@ -252,6 +262,22 @@ class Led{
       this->pin = pin;
       pinMode(pin, OUTPUT);
       brightCounter = brightPeriod;
+      switch(pin){
+        case 3:
+        case 5:
+        case 6:
+        case 9:
+        case 10:
+        case 11:
+          //is PWM-Pin - use timer-pwm
+          timerPwm = true;
+        break;
+        default:
+          //not pwm-pin, use software timed pwm
+          timerPwm = false;
+        break;
+      }
+      setPin(false);
     }
 
     void update(){
@@ -259,9 +285,10 @@ class Led{
       int deltat = mls - lastMlls;
       lastMlls = mls;
       bool dimmed = false;
+      //Dimming of the LED
       if(brightCounter > 0){
         brightCounter -= deltat;
-        if(brightCounter < brightness){
+        if(brightCounter < invertBrightness(brightness)/26){
           dimmed = false;
         } else {
           dimmed = true;
@@ -270,115 +297,97 @@ class Led{
           brightCounter = brightPeriod;
         }
       }
-      if(blinkCounter > 0){
+      //Blinking of the LED
+      if(blinkCounter > 0 && blinkCount > 0){
+        //blinking
         blinkCounter -= deltat;
-        if(blinkCounter > (blinkRate - blinkDuty)){
-          digitalWrite(pin, state && !dimmed);
-        } else {
-          digitalWrite(pin, LOW);
-        }
+        setPin(blinkCounter > (blinkRate - blinkDuty));
         if(blinkCounter <= 0){
           if(blinkCount != 0){
             if(blinkCount > 0){
               blinkCount--;
             }
             blinkCounter = blinkRate;
+          } else {
+            //blinkCount is 0 - blinking ended
+            brightness = prevBrightness;
           }          
         }
       } else{
+        //not blinking
         if(blinkCount != 0){
+          //start another blink
           if(blinkCount > 0){
+            //reduce if not blink forever
             blinkCount --;
           }
           blinkCounter = blinkRate;
+          setPin(true);
         }
-        digitalWrite(pin, state && !dimmed);
+        setPin(state && (timerPwm || dimmed));
       }
+    }
+
+    void setPin(bool state){
+      int onBright = timerPwm?brightness:255; //set brightness to 255 if not PWM-Pin, state will be toggled from update() to dim
+      int offBright = 0;
+      if(inverted){
+        onBright = invertBrightness(onBright);
+        offBright = 255;
+      }
+      analogWrite(pin, state?onBright:offBright);        
     }
 
     void setState(bool state){
       this->state = state;
+      // setPin(state);
     }
 
-    void blink(int rate, int duty, int count){
+    void blink(uint32_t rate, uint32_t duty, int count, int brightness){
       //sets to blink N times, count = -1 for infinite
       //rate in ms period time, 1000 slow rate, 10 fast rate
       //duty in 0..100 (%)
+      blinkCount = 0;
+      blinkCounter = 0;
+      prevBrightness = this->brightness;
+      setBrightness(brightness);
       blinkRate = rate;
       blinkDuty = (duty * rate)/100;
-      blinkCount = count;
+      blinkCount = count; //decrement, since first blink started
       blinkCounter = rate;
+      setState(true);
     }
 
     void setBrightness(int brightness){
       //brightness in 0..10
-      this->brightness = brightness;
+      if(blinkCount > 0 && blinkCounter > 0){
+        this->prevBrightness = brightness;
+      } else {
+        this->brightness = brightness;
+      }
     }
 };
 
 class LedBar{
   //handles the 4 leds, blinks them, sets brightness through pwm
   private:
-    int* pins;
-    int blinkCounter = 0;
     int numericValue = 0; 
-    int lastMillis = 0;
-    int brightness = 0;
-    int brightCounter = 0;
-    int darkCounter = 0;
-    int timeout = 2000; //ms after which the LEDs will blink inverted
-    int timeoutBlink = 100; //blink duration after timeout
-    int timeoutCounter = 0; //counts time until timeout
-    int preBlinkBrightness = 0;
-    int16_t periods[3] = {100, 10, 100};
-    int16_t dutys[3] = {100, 1, 10};
-
-
-    int pwm_period = 100; //10ms period-time = 100Hz
-    int pwm_duty = 100;  //10ms dutycycle = 0,5% dutycycle
-    int pwm_count = 0; //ms since period begin
+    Led leds[4];
   public:
-    bool inverted;
     LedBar(){
       //empty default constructor
     }
 
     LedBar(int ledPins[4]){
-      pins = ledPins;
       for(int i=0; i<4; i++){
-        pinMode(ledPins[i], OUTPUT);
+        leds[i] = Led(ledPins[i]);
+        leds[i].inverted = true;
       }
     }
 
     void update(){
-      int16_t mlls = millis();
-      int16_t deltat = mlls - lastMillis;
-      lastMillis = mlls;
-      // timeoutCounter += mlls;
-      // if(timeoutCounter >= timeout){
-      //   blink(timeoutBlink);
-      //   timeoutCounter = 0;
-      // }
-      if(blinkCounter > 0){
-        //wait for blink to finish
-        blinkCounter -= deltat;  
-        if(blinkCounter <= 0){
-          //set brigthness back to normal
-          setBrightness(preBlinkBrightness);
-        }      
-      } else {
-        ShowBinary(numericValue);
-        pwm_period = periods[brightness];
-        pwm_duty = dutys[brightness];
-        pwm_count += deltat;
-        if(pwm_count < pwm_duty){
-          //show what was displayed before
-        } else if(pwm_count < pwm_period){
-          setAll(false);
-        } else {
-          //period time has passed
-          pwm_count = 0;
-        }
+      for(int i=0; i<4; i++){
+        leds[i].update();
       }
     }
 
@@ -398,7 +407,7 @@ class LedBar{
     }
 
     void setLed(int led, bool value){
-      digitalWrite(pins[led], !value != inverted);
+      leds[led].setState(value);
     }
 
     void setAll(bool on){
@@ -408,21 +417,23 @@ class LedBar{
 
     void setBrightness(int value){
       //set Brightness from 0 to 4
-      brightness = value;
+      for(int i=0; i<4; i++){
+        leds[i].setBrightness(value);
+      }
     }
 
-    void blink(int rate, int duty, int count){
+    void blink(uint32_t rate, uint32_t duty, int count){
       //blinks duration in ms all LEDs
-      preBlinkBrightness = brightness;
-      blinkCounter = rate;
-      pwm_count = 0;
-      setBrightness(0);
-      setAll(true);
+      for(int i=0; i<4; i++){
+        leds[i].setState(true);
+        leds[i].blink(rate, duty, count, 100);
+      }
     }
 
     void setValue(int value){
       //set the value to be displayed
       numericValue = value;
+      ShowBinary(value);
     }
 };
 
@@ -432,10 +443,12 @@ class Preset{
     int tremoloMode = 0;
     int tremoloRange = 1;
     int tremoloModeCount = 3;
+    bool hammeron = true; //will hammerons be played?
     Preset(){
       //empty default constructor
     }
-    Preset(MidiWriter midi, int noteValues[5], int noteModes[5], int tremMode, int tremRange){
+    Preset(MidiWriter midi, int noteValues[5], int noteModes[5], int tremMode, int tremRange, bool hammeron){
+      this->hammeron = hammeron;
       tremoloMode = tremMode;
       tremoloRange = tremRange;
       tremoloModeCount = 3;
@@ -466,6 +479,11 @@ class Preset{
         return true;
       }
       return false;
+    }
+
+    bool toggleHammeron(){
+      hammeron = !hammeron;
+      return hammeron;
     }
 };
 
@@ -606,9 +624,13 @@ class Tremolo : public Poti {
 // Set this to true to write the default values (from the array constants) to EEPROM, only do this once, then turn off and re-write program to arduino
 bool resetEEPROM = false;
 
-const int SHORT_BLINK = 50;
-const int LONG_BLINK = 120;
+const int SHORT_BLINK = 80;
+const int LONG_BLINK = 200;
 const int VERY_LONG_BLINK = 500;
+
+const int BRIGHT_DEFAULT = 7;
+const int BRIGHT_BRIGHT = 100;
+const int BRIGHT_LOW = 5;
 
 //PINOUTS FOR FIRST 5 BUTTON CONTROLLER
 // // Adjust Pinouts here
@@ -629,7 +651,7 @@ const int VERY_LONG_BLINK = 500;
 
 // Adjust Pinouts here
 const int pinNotes[buttonCount] = {A1,A2,A3,A4,A5};
-int pinLeds[4] = {6,9,10,11};
+int pinLeds[4] = {6,11,10,9};
 const int pinUp = 12;
 const int pinDown = 13;
 const int pinTremolo = A7;
@@ -642,7 +664,6 @@ const int pinStart = A6;
 const int pinDpadMid = 3;
 const int pinSlide = A0;
 
-const int presetCount = 16;
 //4 presets of 6 notes each. May be edited later by user
 NoteNames presetNotes[presetCount][buttonCount] = {{_C4, _F4, _G4, _A4, _C5}, // C F G A for chords
                              {_C4, _Ds4, _F4, _G4, _As4}, //c-minor pentatonik
@@ -680,9 +701,47 @@ int presetModes[presetCount][buttonCount] = {{0,0,0,0,0},
                                    {0,0,0,0,0}
 };
 
+// Presets for 6 Button Guitar
+// //4 presets of 6 notes each. May be edited later by user
+// NoteNames presetNotes[presetCount][6] = {{_C4, _F4, _G4, _A4, _C5, _F5}, // C F G A for chords
+//                              {_C4, _Ds4, _F4, _G4, _As4, _C5}, //c-minor pentatonik
+//                              {_C4, _D4, _E4, _G4, _A4, _C5}, //c-major pentatonik
+//                              {_A3, _B3, _D4, _E4, _A5, _D5},  // 4 Chords for Blitskrieg bob (A3-A3-D4-E4, Chorus D4-D4-A3-D4-A3 D4-D4-B3-D4-A3)
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+//                              {_C4, _D4, _E4, _F4, _G4, _C5},
+// };
+
+// int presetModes[presetCount][6] = {{0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {1,1,1,1,0,0}, //chord-preset containing some chords
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0},
+//                                    {0,0,0,0,0,0}
+// };
+
 int presetTremolos[presetCount] = {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,}; //tremolo values for 16 presets
 int presetTremRanges[presetCount] = {2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,}; //tremolo values for 16 presets
-
+bool hammerons[presetCount] = {true,true,true,true,true,true,true,true,true,true,true,true,true,true,true,true};
 
 Button btn_up(pinUp);
 Button btn_down(pinDown);
@@ -720,7 +779,7 @@ void setup() {
     cfg.writeMidiCh(0);
     for(int i=0; i<16; i++){
       // Reset all presets
-      Preset prst(midi, (int*)presetNotes[i], presetModes[i], presetTremolos[i], presetTremRanges[i]);
+      Preset prst(midi, (int*)presetNotes[i], presetModes[i], presetTremolos[i], presetTremRanges[i], hammerons[i]);
       presets[i] = prst;
     }
     cfg.writeAllPresets(presets);
@@ -735,7 +794,7 @@ void setup() {
 
   //Init LEDs
   leds.setValue(currPreset);
-  leds.setBrightness(1);
+  leds.setBrightness(BRIGHT_DEFAULT);
   leds.blink(2000, 50, 1);
   //Init Note Buttons
   for(int i = 0; i < buttonCount; i++){
@@ -774,16 +833,22 @@ void loop() {
   if(btn_select.pressed){
     // hero power button pressed
     if(btn_start.state){
-      // tuning/ start pressed - change mode (single note, major chord, minor chord ..) for all active notes
-      for (int i=0; i<buttonCount; i++){
-        if (btn_notes[i].state){
-          preset.notes[i].changeMode(midi, true);
-          if(tremolo.value <= 500){
-            preset.notes[i].play(midi, true);
+      if(anyNote()){
+        // tuning/ start pressed - change mode (single note, major chord, minor chord ..) for all active notes
+        for (int i=0; i<buttonCount; i++){
+          if (btn_notes[i].state){
+            preset.notes[i].changeMode(midi, true);
+            if(tremolo.value <= 500){
+              preset.notes[i].play(midi, true);
+            }
+            leds.blink(LONG_BLINK, 50, 1);
           }
-          leds.blink(LONG_BLINK, 50, 1);
-        }
+        }        
+      } else{
+        //change hammeron/pulloff enables
+        preset.toggleHammeron();
       }
+
     } else {
       //change tremolo mode
       tremolo.reset(preset, midi, btn_notes);
@@ -839,7 +904,7 @@ void loop() {
       for(int j=0; j<buttonCount-i; j++){
         hammeron = hammeron && !preset.notes[buttonCount-1-j].playing;
       }
-      if(hammeron){
+      if(hammeron && preset.hammeron){
         for(int j=0; j<buttonCount; j++){
           preset.notes[j].play(midi, false);
         }
@@ -851,7 +916,7 @@ void loop() {
   //reset notes when note button is released
   for(int i = 0; i < buttonCount; i++){
     if(btn_notes[i].released){
-      //Mute every released note
+      //Mute notes on released button and check for pulloff
       int pulloff = -1;
       for(int j = 0; j<i; j++){
         if(btn_notes[j].state && !preset.notes[j].playing && preset.notes[i].playing){
@@ -859,7 +924,7 @@ void loop() {
         }
       }
       preset.notes[i].play(midi, false);
-      if(pulloff >= 0){
+      if(pulloff >= 0 && preset.hammeron){
         for(int j = 0; j<buttonCount; j++){
           preset.notes[j].play(midi, j==pulloff);
         }
@@ -902,10 +967,10 @@ void loop() {
       //Start saving preset, start timeout
       timeCounter = 0;
       leds.setValue(15);
-      leds.setBrightness(3);
+      leds.setBrightness(BRIGHT_DEFAULT);
     } else {
       //Change midi channel
-      leds.setBrightness(2);  
+      leds.setBrightness(BRIGHT_BRIGHT);  
       timeCounter = saveTimeout; //to prevent from first pressing menu and then pressing note buttons, notes should be pressed first
     }
 
@@ -913,7 +978,7 @@ void loop() {
 
   //read middle button hold
   leds.setValue(currPreset);
-  leds.setBrightness(1);
+  leds.setBrightness(BRIGHT_BRIGHT);
   if(btn_dmid.state){
     if(anyNote() && timeCounter < saveTimeout){
       leds.setValue(15);
@@ -938,6 +1003,7 @@ void loop() {
       cfg.writeMidiCh(midi.channel);
       leds.blink(VERY_LONG_BLINK, 50, 1);
     }
+    leds.setBrightness(BRIGHT_DEFAULT);
   }
 
   leds.update();
@@ -1057,5 +1123,4 @@ void ChangePreset(bool up){
   preset = presets[currPreset];
   //use leds to display currently selected preset
   leds.setValue(currPreset);
-  leds.update();
 }
