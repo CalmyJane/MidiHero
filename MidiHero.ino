@@ -537,12 +537,12 @@ enum NoteNames{
 
 class Poti{
   private:
-    int lastValue = 0;
+    int16_t lastValue = 0;
   public:
     int pin = A0;
-    int moveTolerance = 1; //turn up to reduce cpu load, keep on 1 to read poti as much as possible
+    int moveTolerance = 3; //turn up to reduce cpu load, keep on 1 to read poti as much as possible
     bool moved = false; //indicates if poti was moved this iteration by more than moveTolerance
-    uint16_t value = 0;
+    int16_t value = 0;
     bool inverted = false;
 
     Poti(){}
@@ -553,6 +553,7 @@ class Poti{
     }
 
     void update(){
+      lastValue = value;
       value = analogRead(pin);
       if(inverted){
         value = 1023 - value;
@@ -569,6 +570,7 @@ class Tremolo : public Poti {
     
     void reset(Preset preset, MidiWriter midi, Button btn_notes[buttonCount]){
       value = 0;
+      moved = true;
       sendMidi(preset, midi, btn_notes);
     }
 
@@ -581,7 +583,7 @@ class Tremolo : public Poti {
 
     void sendMidi(Preset preset, MidiWriter midi, Button btn_notes[buttonCount]){
       // Serial.print("\n");
-      // Serial.print(value);
+      // Serial.print(preset.tremoloRange);
       // Serial.print("\n");
       switch(preset.tremoloMode){
         case 0:  // Pitch Down
@@ -928,6 +930,7 @@ void loop() {
     }
   }
 
+  //read middle button released
   if(btn_dmid.released){
     if(midi.channel != previousMidiCh){
       // WRITING TO EEPROM
