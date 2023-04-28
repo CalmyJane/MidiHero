@@ -778,7 +778,7 @@ void loop() {
       for (int i=0; i<buttonCount; i++){
         if (btn_notes[i].state){
           preset.notes[i].changeMode(midi, true);
-          if(tremolo.value > 500){
+          if(tremolo.value <= 500){
             preset.notes[i].play(midi, true);
           }
           leds.blink(LONG_BLINK, 50, 1);
@@ -1019,8 +1019,8 @@ void PlayNotes(){
 void TuneNotes(bool up, int semitones){
   //tunes the curently pressed note buttones one semitone up/down
   bool range = false;
-  bool replay = tremolo.value > 500; //don't replay if tremolo is pressed
-  for(int i = 0; i < 5; i++){
+  bool replay = tremolo.value <= 500; //don't replay if tremolo is pressed
+  for(int i = 0; i < buttonCount; i++){
     //make sure, that no note exceeds 0x00..0x77
     range = (((preset.notes[i].getRoot() + semitones) >= 0x77) && up) || (((preset.notes[i].getRoot() - semitones) < 0x00) && !up) || range;
   }
