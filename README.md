@@ -136,6 +136,20 @@ The code uses all digital and analog pins except for Rx. You may be able to use 
 
 During debug the board is powered through USB via the USB port, in parallel there is a MP1584 buck converter wired to the Vin pin. The buck converter uses a 9V battery as power source and is adjusted to output +5V. So far it was fine having the usb-cable and the buck converter powering the board in parallel.
 
+## Code
+The code is split to two files for the 6 button PS3/PS4 version of the guitar and the 5 button PS3-Version. There are different models, but these two were most suitable, since both feature minimum 3 menu-buttons (dpad-middle, select and start) and 3 LEDs to indicate presets and other information.
+
+My recommended model is the PS3 Guitar Hero World Tour Octane Red controller.
+
+To run the code on your hardware, simply connect all wires from the different boards to your Arduinos IO pins. Important is only, that you use PWM-Pins for the LEDs (I use 6, 9, 10, 11). These are the only output pins. The other wires all connect to 5V, Gnd or any of the digital or analog input pins. I use A7 for the Tremolo potentiometer which is the only real analog input, the other wires are all digital.
+You can connect them however it fits you and adjust the pin settings in the code in a dedicated section.
+
+Once you have everything wired, I recommend to run the code and uncomment a debug-section that prints the different key-presses to the serial console. You can then look at the serial console and check if your key-mappings are correct. If not, adjust the input pins in the code.
+
+Once this is done you can comment the section again and do a test with midi. Be aware that when printing to the serial console while having midi connected, the serial data will be send out through midi which usually leads to some pretty crazy sounds with your synthesizer. Very uncontrollable though.
+
+The only adjustments you need to make is the pinouts, everything else should hopefully be ready to run.
+
 ## Tutorials
 
 ### Arduino Midi Player Tutorial
@@ -149,3 +163,4 @@ https://docs.arduino.cc/built-in-examples/digital/Button
 ### Arduino Midi In- and Output
 Same circuit as in the other tutorial, but also contains part for recieving midi which is a bit more complicated, but also doable. Also you don't necessarily need the Optocoupler circuit and can directly connect the data lines to your Rx pin, but decoupling is recommended of course.
 https://www.instructables.com/Send-and-Receive-MIDI-with-Arduino/
+
