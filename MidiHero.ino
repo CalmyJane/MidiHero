@@ -649,39 +649,58 @@ const int BRIGHT_LOW = 5;
 // const int pinDpadMid = A5;
 // const int pinSlide = A6;
 
+// // Pinouts for second 5-button guitar, the one with the midi outlet on top
+// // Adjust Pinouts here
+// const int pinNotes[buttonCount] = {A1,A2,A3,A4,A5};
+// int pinLeds[4] = {6,11,10,9};
+// const int pinUp = 12;
+// const int pinDown = 13;
+// const int pinTremolo = A7;
+// const int pinSelect = 2;
+// const int pinDpadUp = 4;
+// const int pinDpadDown = 5;
+// const int pinDpadLeft = 7;
+// const int pinDpadRight = 8;
+// const int pinStart = A6;
+// const int pinDpadMid = 3;
+// const int pinSlide = A0;
+
 // Adjust Pinouts here
 const int pinNotes[buttonCount] = {A1,A2,A3,A4,A5};
 int pinLeds[4] = {6,11,10,9};
 const int pinUp = 12;
 const int pinDown = 13;
 const int pinTremolo = A7;
-const int pinSelect = 2;
+const int pinSelect = A6;
 const int pinDpadUp = 4;
 const int pinDpadDown = 5;
 const int pinDpadLeft = 7;
 const int pinDpadRight = 8;
-const int pinStart = A6;
+const int pinStart = 2;
 const int pinDpadMid = 3;
 const int pinSlide = A0;
 
+
 //4 presets of 6 notes each. May be edited later by user
-NoteNames presetNotes[presetCount][buttonCount] = {{_C4, _F4, _G4, _A4, _C5}, // C F G A for chords
-                             {_C4, _Ds4, _F4, _G4, _As4}, //c-minor pentatonik
-                             {_C4, _D4, _E4, _G4, _A4}, //c-major pentatonik
-                             {_A3, _B3, _D4, _E4, _A5},  // 4 Chords for Blitskrieg bob (A3-A3-D4-E4, Chorus D4-D4-A3-D4-A3 D4-D4-B3-D4-A3)
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
-                             {_C4, _D4, _E4, _F4, _G4}, 
+NoteNames presetNotes[presetCount][buttonCount] = {
+    {_C4, _D4, _E4, _F4, _G4}, // C F G A for chords
+    {_C4, _Ds4, _F4, _G4, _As4}, //c-minor pentatonic
+    {_C4, _D4, _E4, _G4, _A4}, //c-major pentatonic
+    {_A3, _B3, _D4, _E4, _A5}, // 4 Chords for Blitskrieg bob (A3-A3-D4-E4, Chorus D4-D4-A3-D4-A3 D4-D4-B3-D4-A3)
+    {_C4, _E4, _Fs4, _B4, _D5}, // C Lydian mode
+    {_C4, _D4, _F4, _G4, _As4}, // C Mixolydian mode
+    {_C4, _D4, _F4, _G4, _As4}, // C Dorian mode
+    {_C4, _F4, _G4, _A4, _D5}, // Chord progression: C, F, G, Am, Dm
+    {_A3, _C4, _E4, _G4, _B4}, // A minor 7th arpeggio
+    {_C4, _F4, _G4, _As4, _D5}, // C minor 7th arpeggio
+    {_C4, _E4, _G4, _B4, _D5}, // C major 7th arpeggio
+    {_C4, _E4, _A4, _B4, _D5}, // Chord progression: Cmaj, E7, Amaj, B7, Dmaj
+    {_C4, _Ds4, _E4, _F4, _G4}, // C Phrygian mode
+    {_C4, _D4, _E4, _F4, _A4}, // C Major scale with pitchbend highlight (A4 pitchbend to B4)
+    {_C4, _D4, _E4, _G4, _B4}, // C Major Blues scale
+    {_C4, _F4, _F4, _Fs4, _As4} // C Minor Blues scale
 };
+
 
 int presetModes[presetCount][buttonCount] = {{0,0,0,0,0},
                                    {0,0,0,0,0},
