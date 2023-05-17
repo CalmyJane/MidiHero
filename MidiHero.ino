@@ -205,6 +205,7 @@ class Button{
     bool released = false;
     int pin = 0;
     bool analogPin = false;
+    bool inverted = true;
 
     Button(){
       
@@ -214,16 +215,22 @@ class Button{
       //Initialize button input
       pin = pinNumber;
       analogPin = (pinNumber >= A0 && pinNumber <= A7); //is analog pin?
-      pinMode(pinNumber, INPUT);
+      pinMode(pinNumber, INPUT_PULLUP);
     }
 
     void update(){
       //call periodically
       lastState = state;
+      bool tmpState = false;
       if(analogPin){
-        state = analogRead(pin) > 400;
+        tmpState = analogRead(pin) > 400;
       } else {
-        state = digitalRead(pin);
+        tmpState = digitalRead(pin);
+      }
+      if(inverted){
+        state = !tmpState;
+      } else {
+        state = tmpState;
       }
       pressed = !lastState && state; //was pressed in this iteration
       released = lastState && !state; //was released in this iteration
@@ -667,18 +674,18 @@ const int BRIGHT_LOW = 5;
 
 // Adjust Pinouts here
 const int pinNotes[buttonCount] = {A1,A2,A3,A4,A5};
-int pinLeds[4] = {6,11,10,9};
-const int pinUp = 12;
-const int pinDown = 13;
+int pinLeds[4] = {6,10,9,8};
+const int pinUp = 11;
+const int pinDown = 12;
 const int pinTremolo = A7;
-const int pinSelect = A6;
-const int pinDpadUp = 4;
-const int pinDpadDown = 5;
-const int pinDpadLeft = 7;
-const int pinDpadRight = 8;
-const int pinStart = 2;
-const int pinDpadMid = 3;
-const int pinSlide = A0;
+const int pinSelect = 13;
+const int pinDpadUp = 2;
+const int pinDpadDown = 3;
+const int pinDpadLeft = 4;
+const int pinDpadRight = 5;
+const int pinStart = A0;
+const int pinDpadMid = 7;
+const int pinSlide = A6;
 
 
 //4 presets of 6 notes each. May be edited later by user
@@ -1042,8 +1049,8 @@ void loop() {
   //             " DLEFT: " + (String)btn_dleft.state + 
   //             " DRIGHT: " + (String)btn_dright.state + 
   //             " DMID: " + (String)btn_dmid.state + 
-  //             " TREMOLO: " + (String)stateTremolo + 
-  //             " Slide: " + (String)stateSlide + "\n"
+  //             " TREMOLO: " + (String)tremolo.value + "\n"
+  //             // " Slide: " + (String)slide.value + "\n"
   //             );
 }
 
